@@ -153,9 +153,9 @@ button {
 .landing-hero {
   position: relative;
   display: grid;
-  align-items: end;
-  min-height: min(760px, calc(100vh - 72px));
-  padding: 80px 40px 64px;
+  align-items: center;
+  min-height: min(720px, calc(100vh - 72px));
+  padding: 92px 40px 72px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(246, 248, 247, 0.26), rgba(246, 248, 247, 0.9)),
@@ -164,16 +164,20 @@ button {
 
 .hero-interface {
   position: absolute;
-  inset: 32px 40px 110px;
+  top: 64px;
+  right: max(32px, calc((100vw - 1180px) / 2));
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
   gap: 18px;
+  width: min(760px, 58vw);
+  height: 470px;
   padding: 18px;
   border: 1px solid rgba(32, 68, 78, 0.16);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 28px 80px rgba(31, 54, 62, 0.16);
-  transform: perspective(1200px) rotateX(7deg) rotateY(-6deg) translateY(-16px);
+  opacity: 0.82;
+  transform: perspective(1200px) rotateX(7deg) rotateY(-6deg);
   transform-origin: top center;
 }
 
@@ -247,7 +251,8 @@ button {
   position: relative;
   z-index: 1;
   width: min(780px, 100%);
-  padding-top: 360px;
+  margin-left: max(0px, calc((100vw - 1180px) / 2));
+  padding: 24px 0;
 }
 
 .site-eyebrow {
@@ -735,18 +740,23 @@ textarea:focus {
   }
 
   .landing-hero {
-    min-height: 760px;
-    padding: 56px 24px 44px;
+    min-height: auto;
+    padding: 42px 24px 56px;
+    gap: 28px;
   }
 
   .hero-interface {
-    inset: 26px 18px 180px;
+    position: relative;
+    inset: auto;
     grid-template-columns: 120px minmax(0, 1fr);
+    width: 100%;
+    height: 360px;
     transform: perspective(900px) rotateX(6deg) rotateY(-3deg) translateY(-10px);
   }
 
   .hero-copy {
-    padding-top: 390px;
+    margin-left: 0;
+    padding: 0;
   }
 
   .metric-strip,
@@ -808,14 +818,15 @@ textarea:focus {
   }
 
   .landing-hero {
-    min-height: 720px;
+    min-height: auto;
     padding: 34px 18px 34px;
   }
 
   .hero-interface {
-    inset: 22px 12px 230px;
+    inset: auto;
     grid-template-columns: 74px minmax(0, 1fr);
     gap: 10px;
+    height: 300px;
     padding: 10px;
   }
 
@@ -833,7 +844,7 @@ textarea:focus {
   }
 
   .hero-copy {
-    padding-top: 340px;
+    padding-top: 0;
   }
 
   .hero-actions,
