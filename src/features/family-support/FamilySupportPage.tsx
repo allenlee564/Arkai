@@ -255,6 +255,7 @@ function GenogramRelationEdge({
         id={id}
         path={edgePath}
         markerEnd={markerEnd}
+        interactionWidth={24}
         style={{
           strokeWidth: selected ? 3 : 2,
           ...style,
@@ -350,9 +351,11 @@ export function FamilySupportPage() {
   const [ecogramNodes, , onEcogramNodesChange] = useNodesState(initialEcogramNodes);
   const [ecogramEdges, , onEcogramEdgesChange] = useEdgesState(initialEcogramEdges);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('client');
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string>('');
   const [activeRelationTool, setActiveRelationTool] = useState<RelationTool>(defaultRelationTool);
 
   const selectedPerson = genogramNodes.find((node) => node.id === selectedPersonId);
+  const selectedEdge = genogramEdges.find((edge) => edge.id === selectedEdgeId);
   const selectedLegend = useMemo(
     () =>
       symbolGroups.map((group) => ({
@@ -397,6 +400,14 @@ export function FamilySupportPage() {
       current.filter((edge) => edge.source !== selectedPersonId && edge.target !== selectedPersonId),
     );
     setSelectedPersonId('');
+    setSelectedEdgeId('');
+  };
+
+  const deleteSelectedEdge = () => {
+    if (!selectedEdgeId) return;
+
+    setGenogramEdges((current) => current.filter((edge) => edge.id !== selectedEdgeId));
+    setSelectedEdgeId('');
   };
 
   const updateSelectedPerson = <K extends keyof PersonNodeData>(key: K, value: PersonNodeData[K]) => {
@@ -484,7 +495,9 @@ export function FamilySupportPage() {
 
   const onSelectionChange = useCallback((selection: OnSelectionChangeParams) => {
     const selectedNode = selection.nodes.find((node) => node.type === 'person');
+    const selectedRelation = selection.edges[0] as Edge<RelationEdgeData> | undefined;
     setSelectedPersonId(selectedNode?.id ?? '');
+    setSelectedEdgeId(selectedNode ? '' : selectedRelation?.id ?? '');
   }, []);
 
   return (
@@ -629,10 +642,13 @@ export function FamilySupportPage() {
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               connectionMode={ConnectionMode.Loose}
+              deleteKeyCode={['Backspace', 'Delete']}
               onNodesChange={onGenogramNodesChange}
               onEdgesChange={onGenogramEdgesChange}
               onConnect={onConnect}
               onSelectionChange={onSelectionChange}
+              onEdgesDelete={() => setSelectedEdgeId('')}
+              onNodesDelete={() => setSelectedPersonId('')}
               fitView
             >
               <Background />
@@ -708,8 +724,31 @@ export function FamilySupportPage() {
                   刪除角色
                 </button>
               </>
+            ) : selectedEdge ? (
+              <div className="relation-inspector">
+                <div>
+                  <span>關係線</span>
+                  <strong>{selectedEdge.data?.label ?? '未命名關係'}</strong>
+                </div>
+                <div>
+                  <span>來源</span>
+                  <strong>
+                    {genogramNodes.find((node) => node.id === selectedEdge.source)?.data.name ?? selectedEdge.source}
+                  </strong>
+                </div>
+                <div>
+                  <span>目標</span>
+                  <strong>
+                    {genogramNodes.find((node) => node.id === selectedEdge.target)?.data.name ?? selectedEdge.target}
+                  </strong>
+                </div>
+                <button type="button" className="danger-button" onClick={deleteSelectedEdge}>
+                  <Trash2 size={16} />
+                  刪除關係線
+                </button>
+              </div>
             ) : (
-              <div className="empty-state">請選取一個角色，或從左側新增人物。</div>
+              <div className="empty-state">請選取角色或關係線，或從左側新增人物。</div>
             )}
           </aside>
         </div>
