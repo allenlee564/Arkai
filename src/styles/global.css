@@ -153,9 +153,11 @@ button {
 .landing-hero {
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(460px, 1.05fr);
   align-items: center;
+  gap: 44px;
   min-height: min(720px, calc(100vh - 72px));
-  padding: 92px 40px 72px;
+  padding: 92px max(40px, calc((100vw - 1180px) / 2)) 72px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(246, 248, 247, 0.26), rgba(246, 248, 247, 0.9)),
@@ -163,21 +165,21 @@ button {
 }
 
 .hero-interface {
-  position: absolute;
-  top: 64px;
-  right: max(32px, calc((100vw - 1180px) / 2));
+  position: relative;
+  z-index: 0;
+  justify-self: end;
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
   gap: 18px;
-  width: min(760px, 58vw);
-  height: 470px;
+  width: min(760px, 100%);
+  height: 430px;
   padding: 18px;
   border: 1px solid rgba(32, 68, 78, 0.16);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 28px 80px rgba(31, 54, 62, 0.16);
   opacity: 0.82;
-  transform: perspective(1200px) rotateX(7deg) rotateY(-6deg);
+  transform: perspective(1200px) rotateX(5deg) rotateY(-5deg);
   transform-origin: top center;
 }
 
@@ -250,8 +252,8 @@ button {
 .hero-copy {
   position: relative;
   z-index: 1;
-  width: min(780px, 100%);
-  margin-left: max(0px, calc((100vw - 1180px) / 2));
+  width: min(620px, 100%);
+  margin-left: 0;
   padding: 24px 0;
 }
 
@@ -264,9 +266,11 @@ button {
 }
 
 .hero-copy h1 {
+  display: grid;
+  gap: 4px;
   margin-top: 12px;
-  font-size: clamp(3rem, 8vw, 6.6rem);
-  line-height: 0.96;
+  font-size: clamp(3rem, 5.6vw, 5.6rem);
+  line-height: 0.98;
 }
 
 .hero-copy p {
@@ -740,17 +744,17 @@ textarea:focus {
   }
 
   .landing-hero {
+    grid-template-columns: 1fr;
     min-height: auto;
     padding: 42px 24px 56px;
     gap: 28px;
   }
 
   .hero-interface {
-    position: relative;
-    inset: auto;
     grid-template-columns: 120px minmax(0, 1fr);
     width: 100%;
     height: 360px;
+    justify-self: stretch;
     transform: perspective(900px) rotateX(6deg) rotateY(-3deg) translateY(-10px);
   }
 

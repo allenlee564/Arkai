@@ -80,7 +80,10 @@ export function LandingPage() {
 
         <div className="hero-copy">
           <p className="site-eyebrow">AI 輔助開案與照護決策平台</p>
-          <h1>ARKAI 照護方舟</h1>
+          <h1>
+            <span>ARKAI</span>
+            <span>照護方舟</span>
+          </h1>
           <p>
             協助照護團隊把資格判定、家庭支持、生理需求與證明文件參照整理成清楚流程，讓開案前評估更快進入可判斷、可追蹤、可稽核的狀態。
           </p>
