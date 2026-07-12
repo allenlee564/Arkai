@@ -1,7 +1,18 @@
+import { useState } from 'react';
 import { ClipboardCheck, FileUp, ShieldCheck } from 'lucide-react';
 import { EligibilityPage } from '../features/eligibility/EligibilityPage';
 
+export type AppView = 'eligibility' | 'documents' | 'security';
+
+const navItems = [
+  { id: 'eligibility', label: '福利資格判定', icon: ClipboardCheck },
+  { id: 'documents', label: '文件參照', icon: FileUp },
+  { id: 'security', label: '權限紀錄', icon: ShieldCheck },
+] as const;
+
 export function App() {
+  const [activeView, setActiveView] = useState<AppView>('eligibility');
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -14,22 +25,27 @@ export function App() {
         </div>
 
         <nav className="nav-list" aria-label="主要功能">
-          <a className="nav-item active" href="#eligibility">
-            <ClipboardCheck size={18} />
-            福利資格判定
-          </a>
-          <a className="nav-item" href="#documents">
-            <FileUp size={18} />
-            文件參照
-          </a>
-          <a className="nav-item" href="#security">
-            <ShieldCheck size={18} />
-            權限紀錄
-          </a>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.id;
+
+            return (
+              <button
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                type="button"
+                key={item.id}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => setActiveView(item.id)}
+              >
+                <Icon size={18} />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
       </aside>
 
-      <EligibilityPage />
+      <EligibilityPage activeView={activeView} />
     </main>
   );
 }

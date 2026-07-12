@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { CheckCircle2, FilePlus2, RotateCcw, Save, Send, Trash2 } from 'lucide-react';
+import { CheckCircle2, FilePlus2, LockKeyhole, RotateCcw, Save, Send, Trash2 } from 'lucide-react';
+import type { AppView } from '../../app/App';
 import type { DocumentReference, EligibilityFormState } from './types';
 
 const categoryOptions = [
@@ -21,7 +22,11 @@ const initialForm: EligibilityFormState = {
   documents: [],
 };
 
-export function EligibilityPage() {
+type EligibilityPageProps = {
+  activeView: AppView;
+};
+
+export function EligibilityPage({ activeView }: EligibilityPageProps) {
   const [form, setForm] = useState<EligibilityFormState>(initialForm);
   const [documentDraft, setDocumentDraft] = useState({
     type: '身份證明',
@@ -68,11 +73,11 @@ export function EligibilityPage() {
   };
 
   return (
-    <section className="content" id="eligibility">
+    <section className="content">
       <header className="page-header">
         <div>
           <p className="eyebrow">開案前 / 福利資格判定</p>
-          <h2>資格輸入與證明文件參照</h2>
+          <h2>{activeView === 'documents' ? '證明文件參照' : activeView === 'security' ? '權限紀錄' : '資格輸入'}</h2>
         </div>
         <div className="progress-summary" aria-label={`完成度 ${completion}%`}>
           <span>{completion}%</span>
@@ -82,162 +87,187 @@ export function EligibilityPage() {
         </div>
       </header>
 
-      <div className="workspace">
-        <form className="panel form-panel">
-          <div className="section-heading">
-            <h3>個案資格資料</h3>
-            <p>先建立前端輸入結構，後續可接資格判定 API。</p>
-          </div>
+      {activeView === 'eligibility' && (
+        <div className="workspace single-column">
+          <form className="panel form-panel">
+            <div className="section-heading">
+              <h3>個案資格資料</h3>
+              <p>先建立前端輸入結構，後續可接資格判定 API。</p>
+            </div>
 
-          <div className="form-grid">
-            <label>
-              個案姓名
-              <input
-                value={form.caseName}
-                onChange={(event) => setForm({ ...form, caseName: event.target.value })}
-                placeholder="請輸入姓名"
-              />
-            </label>
-            <label>
-              身分證字號
-              <input
-                value={form.nationalId}
-                onChange={(event) => setForm({ ...form, nationalId: event.target.value })}
-                placeholder="A123456789"
-              />
-            </label>
-            <label>
-              出生日期
-              <input
-                type="date"
-                value={form.birthDate}
-                onChange={(event) => setForm({ ...form, birthDate: event.target.value })}
-              />
-            </label>
-            <label>
-              聯絡電話
-              <input
-                value={form.phone}
-                onChange={(event) => setForm({ ...form, phone: event.target.value })}
-                placeholder="09xx-xxx-xxx"
-              />
-            </label>
-            <label className="wide">
-              資格類別
-              <select
-                value={form.category}
-                onChange={(event) =>
-                  setForm({ ...form, category: event.target.value as EligibilityFormState['category'] })
-                }
-              >
-                {categoryOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="wide">
-              家戶與福利狀態
-              <textarea
-                value={form.householdNote}
-                onChange={(event) => setForm({ ...form, householdNote: event.target.value })}
-                placeholder="例如：中低收入戶、家庭支持不足、主要照顧者狀況"
-              />
-            </label>
-            <label className="wide">
-              照護需求摘要
-              <textarea
-                value={form.careNeedNote}
-                onChange={(event) => setForm({ ...form, careNeedNote: event.target.value })}
-                placeholder="例如：日常生活協助、復能需求、近期風險事件"
-              />
-            </label>
-          </div>
+            <div className="form-grid">
+              <label>
+                個案姓名
+                <input
+                  value={form.caseName}
+                  onChange={(event) => setForm({ ...form, caseName: event.target.value })}
+                  placeholder="請輸入姓名"
+                />
+              </label>
+              <label>
+                身分證字號
+                <input
+                  value={form.nationalId}
+                  onChange={(event) => setForm({ ...form, nationalId: event.target.value })}
+                  placeholder="A123456789"
+                />
+              </label>
+              <label>
+                出生日期
+                <input
+                  type="date"
+                  value={form.birthDate}
+                  onChange={(event) => setForm({ ...form, birthDate: event.target.value })}
+                />
+              </label>
+              <label>
+                聯絡電話
+                <input
+                  value={form.phone}
+                  onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                  placeholder="09xx-xxx-xxx"
+                />
+              </label>
+              <label className="wide">
+                資格類別
+                <select
+                  value={form.category}
+                  onChange={(event) =>
+                    setForm({ ...form, category: event.target.value as EligibilityFormState['category'] })
+                  }
+                >
+                  {categoryOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="wide">
+                家戶與福利狀態
+                <textarea
+                  value={form.householdNote}
+                  onChange={(event) => setForm({ ...form, householdNote: event.target.value })}
+                  placeholder="例如：中低收入戶、家庭支持不足、主要照顧者狀況"
+                />
+              </label>
+              <label className="wide">
+                照護需求摘要
+                <textarea
+                  value={form.careNeedNote}
+                  onChange={(event) => setForm({ ...form, careNeedNote: event.target.value })}
+                  placeholder="例如：日常生活協助、復能需求、近期風險事件"
+                />
+              </label>
+            </div>
 
-          <div className="actions">
-            <button type="button" className="secondary" onClick={() => setForm(initialForm)}>
-              <RotateCcw size={16} />
-              清除
-            </button>
-            <button type="button" className="secondary">
-              <Save size={16} />
-              暫存
-            </button>
-            <button type="button" className="primary">
-              <Send size={16} />
-              送出判定
-            </button>
-          </div>
-        </form>
+            <div className="actions">
+              <button type="button" className="secondary" onClick={() => setForm(initialForm)}>
+                <RotateCcw size={16} />
+                清除
+              </button>
+              <button type="button" className="secondary">
+                <Save size={16} />
+                暫存
+              </button>
+              <button type="button" className="primary">
+                <Send size={16} />
+                送出判定
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
-        <aside className="panel document-panel" id="documents">
-          <div className="section-heading">
-            <h3>證明文件參照</h3>
-            <p>目前先保存文件參照資料，之後可串接正式上傳服務。</p>
-          </div>
+      {activeView === 'documents' && (
+        <div className="workspace single-column">
+          <section className="panel document-panel">
+            <div className="section-heading">
+              <h3>證明文件參照</h3>
+              <p>目前先保存文件參照資料，之後可串接正式上傳服務。</p>
+            </div>
 
-          <div className="document-draft">
-            <label>
-              文件類型
-              <select
-                value={documentDraft.type}
-                onChange={(event) => setDocumentDraft({ ...documentDraft, type: event.target.value })}
-              >
-                <option>身份證明</option>
-                <option>福利資格證明</option>
-                <option>醫療或照護證明</option>
-                <option>其他佐證文件</option>
-              </select>
-            </label>
-            <label>
-              文件名稱
-              <input
-                value={documentDraft.name}
-                onChange={(event) => setDocumentDraft({ ...documentDraft, name: event.target.value })}
-                placeholder="例如：中低收入證明"
-              />
-            </label>
-            <label>
-              參照位置
-              <input
-                value={documentDraft.source}
-                onChange={(event) => setDocumentDraft({ ...documentDraft, source: event.target.value })}
-                placeholder="例如：檔案代號、雲端路徑或內部編號"
-              />
-            </label>
-            <button type="button" className="primary full-width" onClick={addDocument}>
-              <FilePlus2 size={16} />
-              加入文件
-            </button>
-          </div>
+            <div className="document-layout">
+              <div className="document-draft">
+                <label>
+                  文件類型
+                  <select
+                    value={documentDraft.type}
+                    onChange={(event) => setDocumentDraft({ ...documentDraft, type: event.target.value })}
+                  >
+                    <option>身份證明</option>
+                    <option>福利資格證明</option>
+                    <option>醫療或照護證明</option>
+                    <option>其他佐證文件</option>
+                  </select>
+                </label>
+                <label>
+                  文件名稱
+                  <input
+                    value={documentDraft.name}
+                    onChange={(event) => setDocumentDraft({ ...documentDraft, name: event.target.value })}
+                    placeholder="例如：中低收入證明"
+                  />
+                </label>
+                <label>
+                  參照位置
+                  <input
+                    value={documentDraft.source}
+                    onChange={(event) => setDocumentDraft({ ...documentDraft, source: event.target.value })}
+                    placeholder="例如：檔案代號、雲端路徑或內部編號"
+                  />
+                </label>
+                <button type="button" className="primary full-width" onClick={addDocument}>
+                  <FilePlus2 size={16} />
+                  加入文件
+                </button>
+              </div>
 
-          <div className="document-list">
-            {form.documents.length === 0 ? (
-              <div className="empty-state">尚未加入證明文件參照</div>
-            ) : (
-              form.documents.map((document) => (
-                <article className="document-item" key={document.id}>
-                  <div>
-                    <span className="tag">{document.type}</span>
-                    <h4>{document.name}</h4>
-                    <p>{document.source}</p>
-                  </div>
-                  <div className="document-actions">
-                    <span className={`status ${document.status}`}>
-                      <CheckCircle2 size={14} />
-                      {document.status === 'ready' ? '已參照' : '待補'}
-                    </span>
-                    <button type="button" className="icon-button" onClick={() => removeDocument(document.id)}>
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </aside>
-      </div>
+              <div className="document-list">
+                {form.documents.length === 0 ? (
+                  <div className="empty-state">尚未加入證明文件參照</div>
+                ) : (
+                  form.documents.map((document) => (
+                    <article className="document-item" key={document.id}>
+                      <div>
+                        <span className="tag">{document.type}</span>
+                        <h4>{document.name}</h4>
+                        <p>{document.source}</p>
+                      </div>
+                      <div className="document-actions">
+                        <span className={`status ${document.status}`}>
+                          <CheckCircle2 size={14} />
+                          {document.status === 'ready' ? '已參照' : '待補'}
+                        </span>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label={`刪除 ${document.name}`}
+                          onClick={() => removeDocument(document.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {activeView === 'security' && (
+        <div className="workspace single-column">
+          <section className="panel placeholder-panel">
+            <LockKeyhole size={28} />
+            <div>
+              <h3>權限紀錄</h3>
+              <p>這個區塊會留給後續資安與文件存取權限規格，目前先作為導覽佔位。</p>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
