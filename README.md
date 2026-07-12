@@ -69,3 +69,13 @@ DNS A record 指到 Ubuntu 伺服器 IP 後，即可先用 HTTP 連線。HTTPS �
 /variant-b   AI 科技平台視覺版本
 /variant-c   溫暖照護品牌視覺版本
 ```
+
+## 系統原型功能
+
+- 福利資格判定
+- 證明文件參照
+- 家庭支持評估
+  - 家庭支持表單
+  - 家系圖 React Flow 編輯器
+  - 生態圖 React Flow 編輯器
+  - 標準家系圖符號圖例

@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { ClipboardCheck, FileUp, ShieldCheck } from 'lucide-react';
+import { ClipboardCheck, FileUp, Network, ShieldCheck } from 'lucide-react';
 import { EligibilityPage } from '../features/eligibility/EligibilityPage';
+import { FamilySupportPage } from '../features/family-support/FamilySupportPage';
 import { LandingPage } from '../features/marketing/LandingPage';
 import { VariantBPage } from '../features/marketing/VariantBPage';
 import { VariantCPage } from '../features/marketing/VariantCPage';
 
-export type AppView = 'eligibility' | 'documents' | 'security';
+export type AppView = 'eligibility' | 'documents' | 'security' | 'family-support';
 
 const navItems = [
   { id: 'eligibility', label: '福利資格判定', icon: ClipboardCheck },
   { id: 'documents', label: '文件參照', icon: FileUp },
+  { id: 'family-support', label: '家庭支持評估', icon: Network },
   { id: 'security', label: '權限紀錄', icon: ShieldCheck },
 ] as const;
 
@@ -48,7 +50,7 @@ function ProductApp() {
         </nav>
       </aside>
 
-      <EligibilityPage activeView={activeView} />
+      {activeView === 'family-support' ? <FamilySupportPage /> : <EligibilityPage activeView={activeView} />}
     </main>
   );
 }
