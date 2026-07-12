@@ -1,17 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  addEdge,
   Background,
   Controls,
   Handle,
   MarkerType,
   Position,
   ReactFlow,
+  useEdgesState,
+  useNodesState,
+  type Connection,
   type Edge,
   type Node,
   type NodeProps,
+  type OnSelectionChangeParams,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Circle, Diamond, Download, Home, Save, Square, Triangle } from 'lucide-react';
+import { Circle, Diamond, Download, Home, Save, Square, Trash2, Triangle } from 'lucide-react';
 import { genogramSymbols, symbolGroups } from './genogramSymbols';
 
 type FamilyTab = 'form' | 'genogram' | 'ecogram' | 'legend';
@@ -20,8 +25,8 @@ type PersonNodeData = {
   name: string;
   role: string;
   gender: 'male' | 'female' | 'unknown' | 'nonbinary';
-  status?: 'index' | 'deceased' | 'caregiver';
-  note?: string;
+  status: 'none' | 'index' | 'deceased' | 'caregiver';
+  note: string;
 };
 
 type ResourceNodeData = {
@@ -45,12 +50,42 @@ const supportFields = [
 ];
 
 const initialGenogramNodes: Node<PersonNodeData>[] = [
-  { id: 'grandfather', type: 'person', position: { x: 120, y: 40 }, data: { name: '林父', role: '父親', gender: 'male', status: 'deceased' } },
-  { id: 'grandmother', type: 'person', position: { x: 300, y: 40 }, data: { name: '陳母', role: '母親', gender: 'female' } },
-  { id: 'client', type: 'person', position: { x: 190, y: 210 }, data: { name: '林女士', role: '個案本人', gender: 'female', status: 'index' } },
-  { id: 'spouse', type: 'person', position: { x: 430, y: 210 }, data: { name: '王先生', role: '配偶', gender: 'male', note: '分居' } },
-  { id: 'daughter', type: 'person', position: { x: 240, y: 390 }, data: { name: '林小安', role: '女兒/主要照顧者', gender: 'female', status: 'caregiver' } },
-  { id: 'son', type: 'person', position: { x: 430, y: 390 }, data: { name: '林小宇', role: '兒子', gender: 'male' } },
+  {
+    id: 'grandfather',
+    type: 'person',
+    position: { x: 120, y: 40 },
+    data: { name: '林父', role: '父親', gender: 'male', status: 'deceased', note: '1941-2015' },
+  },
+  {
+    id: 'grandmother',
+    type: 'person',
+    position: { x: 300, y: 40 },
+    data: { name: '陳母', role: '母親', gender: 'female', status: 'none', note: '' },
+  },
+  {
+    id: 'client',
+    type: 'person',
+    position: { x: 190, y: 210 },
+    data: { name: '林女士', role: '個案本人', gender: 'female', status: 'index', note: '福利資格待確認' },
+  },
+  {
+    id: 'spouse',
+    type: 'person',
+    position: { x: 430, y: 210 },
+    data: { name: '王先生', role: '配偶', gender: 'male', status: 'none', note: '分居' },
+  },
+  {
+    id: 'daughter',
+    type: 'person',
+    position: { x: 240, y: 390 },
+    data: { name: '林小安', role: '女兒/主要照顧者', gender: 'female', status: 'caregiver', note: '照顧壓力高' },
+  },
+  {
+    id: 'son',
+    type: 'person',
+    position: { x: 430, y: 390 },
+    data: { name: '林小宇', role: '兒子', gender: 'male', status: 'none', note: '外縣市工作' },
+  },
 ];
 
 const initialGenogramEdges: Edge[] = [
@@ -76,11 +111,11 @@ const initialEcogramEdges: Edge[] = [
   { id: 'eco-spouse', source: 'case', target: 'spouse-resource', label: '緊張', style: { stroke: '#b45309' } },
 ];
 
-function PersonNode({ data }: NodeProps<Node<PersonNodeData>>) {
-  const shapeClass = `person-symbol ${data.gender} ${data.status ?? ''}`;
+function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) {
+  const shapeClass = `person-symbol ${data.gender} ${data.status}`;
 
   return (
-    <div className="genogram-node">
+    <div className={`genogram-node ${selected ? 'selected' : ''}`}>
       <Handle type="target" position={Position.Top} />
       <div className={shapeClass}>
         {data.gender === 'male' && <Square size={38} />}
@@ -116,10 +151,13 @@ const nodeTypes = {
 
 export function FamilySupportPage() {
   const [activeTab, setActiveTab] = useState<FamilyTab>('form');
-  const [genogramNodes] = useState(initialGenogramNodes);
-  const [genogramEdges] = useState(initialGenogramEdges);
-  const [ecogramNodes] = useState(initialEcogramNodes);
-  const [ecogramEdges] = useState(initialEcogramEdges);
+  const [genogramNodes, setGenogramNodes, onGenogramNodesChange] = useNodesState(initialGenogramNodes);
+  const [genogramEdges, setGenogramEdges, onGenogramEdgesChange] = useEdgesState(initialGenogramEdges);
+  const [ecogramNodes, , onEcogramNodesChange] = useNodesState(initialEcogramNodes);
+  const [ecogramEdges, , onEcogramEdgesChange] = useEdgesState(initialEcogramEdges);
+  const [selectedPersonId, setSelectedPersonId] = useState<string>('client');
+
+  const selectedPerson = genogramNodes.find((node) => node.id === selectedPersonId);
   const selectedLegend = useMemo(
     () =>
       symbolGroups.map((group) => ({
@@ -128,6 +166,81 @@ export function FamilySupportPage() {
       })),
     [],
   );
+
+  const addPerson = (gender: PersonNodeData['gender'] = 'female') => {
+    const id = `person-${Date.now()}`;
+    const nextPosition = {
+      x: 120 + (genogramNodes.length % 4) * 180,
+      y: 120 + Math.floor(genogramNodes.length / 4) * 150,
+    };
+
+    setGenogramNodes((current) => [
+      ...current,
+      {
+        id,
+        type: 'person',
+        position: nextPosition,
+        data: {
+          name: '新成員',
+          role: '家庭成員',
+          gender,
+          status: 'none',
+          note: '',
+        },
+      },
+    ]);
+    setSelectedPersonId(id);
+  };
+
+  const deleteSelectedPerson = () => {
+    if (!selectedPersonId) return;
+
+    setGenogramNodes((current) => current.filter((node) => node.id !== selectedPersonId));
+    setGenogramEdges((current) =>
+      current.filter((edge) => edge.source !== selectedPersonId && edge.target !== selectedPersonId),
+    );
+    setSelectedPersonId('');
+  };
+
+  const updateSelectedPerson = <K extends keyof PersonNodeData>(key: K, value: PersonNodeData[K]) => {
+    if (!selectedPersonId) return;
+
+    setGenogramNodes((current) =>
+      current.map((node) =>
+        node.id === selectedPersonId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                [key]: value,
+              },
+            }
+          : node,
+      ),
+    );
+  };
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      setGenogramEdges((current) =>
+        addEdge(
+          {
+            ...connection,
+            type: 'smoothstep',
+            label: '新關係',
+            markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+          },
+          current,
+        ),
+      );
+    },
+    [setGenogramEdges],
+  );
+
+  const onSelectionChange = useCallback((selection: OnSelectionChangeParams) => {
+    const selectedNode = selection.nodes.find((node) => node.type === 'person');
+    setSelectedPersonId(selectedNode?.id ?? '');
+  }, []);
 
   return (
     <section className="content family-support-page">
@@ -217,10 +330,29 @@ export function FamilySupportPage() {
         <div className="editor-shell">
           <aside className="panel editor-toolbox">
             <h3>符號工具箱</h3>
-            {selectedLegend.slice(0, 4).map((group) => (
+            <div>
+              <strong>新增人物</strong>
+              <button type="button" onClick={() => addPerson('male')}>
+                <Square size={16} />
+                新增男性
+              </button>
+              <button type="button" onClick={() => addPerson('female')}>
+                <Circle size={16} />
+                新增女性
+              </button>
+              <button type="button" onClick={() => addPerson('unknown')}>
+                <Diamond size={16} />
+                新增未知
+              </button>
+              <button type="button" onClick={() => addPerson('nonbinary')}>
+                <Triangle size={16} />
+                新增非二元
+              </button>
+            </div>
+            {selectedLegend.slice(1, 4).map((group) => (
               <div key={group.group}>
                 <strong>{group.group}</strong>
-                {group.symbols.slice(0, 8).map((symbol) => {
+                {group.symbols.slice(0, 6).map((symbol) => {
                   const Icon = symbol.icon;
                   return (
                     <button type="button" key={symbol.id}>
@@ -237,9 +369,13 @@ export function FamilySupportPage() {
               nodes={genogramNodes}
               edges={genogramEdges.map((edge) => ({
                 ...edge,
-                markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+                markerEnd: edge.markerEnd ?? { type: MarkerType.ArrowClosed, width: 14, height: 14 },
               }))}
               nodeTypes={nodeTypes}
+              onNodesChange={onGenogramNodesChange}
+              onEdgesChange={onGenogramEdgesChange}
+              onConnect={onConnect}
+              onSelectionChange={onSelectionChange}
               fitView
             >
               <Background />
@@ -248,26 +384,65 @@ export function FamilySupportPage() {
           </section>
           <aside className="panel inspector-panel">
             <h3>屬性面板</h3>
-            <label>
-              姓名
-              <input value="林女士" readOnly />
-            </label>
-            <label>
-              角色
-              <input value="個案本人" readOnly />
-            </label>
-            <label>
-              標記
-              <select defaultValue="index">
-                <option value="index">個案本人</option>
-                <option value="caregiver">主要照顧者</option>
-                <option value="deceased">死亡</option>
-              </select>
-            </label>
-            <label>
-              備註
-              <textarea defaultValue="福利資格待確認，女兒為主要照顧者。" />
-            </label>
+            {selectedPerson ? (
+              <>
+                <label>
+                  姓名
+                  <input
+                    value={selectedPerson.data.name}
+                    onChange={(event) => updateSelectedPerson('name', event.target.value)}
+                  />
+                </label>
+                <label>
+                  角色
+                  <input
+                    value={selectedPerson.data.role}
+                    onChange={(event) => updateSelectedPerson('role', event.target.value)}
+                  />
+                </label>
+                <label>
+                  性別符號
+                  <select
+                    value={selectedPerson.data.gender}
+                    onChange={(event) =>
+                      updateSelectedPerson('gender', event.target.value as PersonNodeData['gender'])
+                    }
+                  >
+                    <option value="male">男性</option>
+                    <option value="female">女性</option>
+                    <option value="unknown">未知</option>
+                    <option value="nonbinary">非二元</option>
+                  </select>
+                </label>
+                <label>
+                  標記
+                  <select
+                    value={selectedPerson.data.status}
+                    onChange={(event) =>
+                      updateSelectedPerson('status', event.target.value as PersonNodeData['status'])
+                    }
+                  >
+                    <option value="none">無</option>
+                    <option value="index">個案本人</option>
+                    <option value="caregiver">主要照顧者</option>
+                    <option value="deceased">死亡</option>
+                  </select>
+                </label>
+                <label>
+                  備註
+                  <textarea
+                    value={selectedPerson.data.note}
+                    onChange={(event) => updateSelectedPerson('note', event.target.value)}
+                  />
+                </label>
+                <button type="button" className="danger-button" onClick={deleteSelectedPerson}>
+                  <Trash2 size={16} />
+                  刪除角色
+                </button>
+              </>
+            ) : (
+              <div className="empty-state">請選取一個角色，或從左側新增人物。</div>
+            )}
           </aside>
         </div>
       )}
@@ -284,7 +459,14 @@ export function FamilySupportPage() {
             ))}
           </aside>
           <section className="panel graph-panel">
-            <ReactFlow nodes={ecogramNodes} edges={ecogramEdges} nodeTypes={nodeTypes} fitView>
+            <ReactFlow
+              nodes={ecogramNodes}
+              edges={ecogramEdges}
+              nodeTypes={nodeTypes}
+              onNodesChange={onEcogramNodesChange}
+              onEdgesChange={onEcogramEdgesChange}
+              fitView
+            >
               <Background />
               <Controls />
             </ReactFlow>

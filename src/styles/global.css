@@ -1648,6 +1648,11 @@ textarea:focus {
   box-shadow: 0 8px 18px rgba(24, 40, 47, 0.08);
 }
 
+.genogram-node.selected {
+  border-color: #2f9c75;
+  box-shadow: 0 0 0 3px rgba(47, 156, 117, 0.16), 0 8px 18px rgba(24, 40, 47, 0.08);
+}
+
 .genogram-node strong,
 .resource-node strong {
   font-size: 0.9rem;
@@ -1735,6 +1740,20 @@ textarea:focus {
 
 .relationship-legend .stress {
   border-left: 4px solid #b45309;
+}
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #b91c1c;
+  padding: 9px 14px;
+  font-weight: 850;
 }
 
 .legend-group-grid {
