@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ClipboardCheck, FileUp, ShieldCheck } from 'lucide-react';
 import { EligibilityPage } from '../features/eligibility/EligibilityPage';
 import { LandingPage } from '../features/marketing/LandingPage';
+import { VariantBPage } from '../features/marketing/VariantBPage';
 
 export type AppView = 'eligibility' | 'documents' | 'security';
 
@@ -52,7 +53,10 @@ function ProductApp() {
 }
 
 export function App() {
-  const isProductApp = window.location.pathname.startsWith('/app');
+  const path = window.location.pathname;
 
-  return isProductApp ? <ProductApp /> : <LandingPage />;
+  if (path.startsWith('/app')) return <ProductApp />;
+  if (path.startsWith('/variant-b')) return <VariantBPage />;
+
+  return <LandingPage />;
 }

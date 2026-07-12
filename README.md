@@ -22,6 +22,7 @@ pnpm dev
 ```text
 http://localhost:5173      # 產品官網
 http://localhost:5173/app  # 系統原型
+http://localhost:5173/variant-b  # AI 科技平台視覺版本
 ```
 
 ## 建置
@@ -64,4 +65,5 @@ DNS A record 指到 Ubuntu 伺服器 IP 後，即可先用 HTTP 連線。HTTPS �
 ```text
 /      對外產品介紹首頁
 /app   福利資格判定與證明文件參照系統原型
+/variant-b   AI 科技平台視覺版本
 ```
