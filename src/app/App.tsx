@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ClipboardCheck, FileUp, ShieldCheck } from 'lucide-react';
 import { EligibilityPage } from '../features/eligibility/EligibilityPage';
+import { LandingPage } from '../features/marketing/LandingPage';
 
 export type AppView = 'eligibility' | 'documents' | 'security';
 
@@ -10,19 +11,19 @@ const navItems = [
   { id: 'security', label: '權限紀錄', icon: ShieldCheck },
 ] as const;
 
-export function App() {
+function ProductApp() {
   const [activeView, setActiveView] = useState<AppView>('eligibility');
 
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
+        <a className="brand" href="/" aria-label="返回 ARKAI 官網">
           <div className="brand-mark">A</div>
           <div>
             <p className="brand-kicker">照護方舟</p>
             <h1>ARKAI</h1>
           </div>
-        </div>
+        </a>
 
         <nav className="nav-list" aria-label="主要功能">
           {navItems.map((item) => {
@@ -48,4 +49,10 @@ export function App() {
       <EligibilityPage activeView={activeView} />
     </main>
   );
+}
+
+export function App() {
+  const isProductApp = window.location.pathname.startsWith('/app');
+
+  return isProductApp ? <ProductApp /> : <LandingPage />;
 }
