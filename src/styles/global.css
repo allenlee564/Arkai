@@ -1598,6 +1598,31 @@ textarea:focus {
   text-align: left;
 }
 
+.editor-toolbox button.active-tool {
+  border-color: #2f9c75;
+  background: #eaf5f1;
+  color: #1f7356;
+}
+
+.active-relation-tool {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #b8d9cc;
+  border-radius: 8px;
+  background: #f0faf6;
+}
+
+.active-relation-tool span {
+  color: #1f7356;
+  font-weight: 900;
+}
+
+.active-relation-tool small {
+  color: #667780;
+  line-height: 1.45;
+}
+
 .editor-shell {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr) 280px;
@@ -1634,6 +1659,22 @@ textarea:focus {
   background: #fbfdfc;
 }
 
+.graph-panel .visible-handle {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #ffffff;
+  background: #2f9c75;
+  opacity: 1;
+}
+
+.graph-panel .left-handle {
+  left: -7px;
+}
+
+.graph-panel .right-handle {
+  right: -7px;
+}
+
 .genogram-node,
 .resource-node {
   display: grid;
@@ -1665,6 +1706,23 @@ textarea:focus {
   font-size: 0.75rem;
   font-style: normal;
   text-align: center;
+}
+
+.node-marker-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  max-width: 150px;
+}
+
+.node-marker-list small {
+  border-radius: 999px;
+  background: #eef3f5;
+  color: #34444c;
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  font-weight: 800;
 }
 
 .person-symbol {

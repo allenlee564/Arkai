@@ -17,22 +17,34 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Circle, Diamond, Download, Home, Save, Square, Trash2, Triangle } from 'lucide-react';
-import { genogramSymbols, symbolGroups } from './genogramSymbols';
+import { genogramSymbols, symbolGroups, type GenogramSymbol } from './genogramSymbols';
 
 type FamilyTab = 'form' | 'genogram' | 'ecogram' | 'legend';
+type Gender = 'male' | 'female' | 'unknown' | 'nonbinary';
+type PersonStatus = 'none' | 'index' | 'deceased' | 'caregiver';
 
 type PersonNodeData = {
   name: string;
   role: string;
-  gender: 'male' | 'female' | 'unknown' | 'nonbinary';
-  status: 'none' | 'index' | 'deceased' | 'caregiver';
+  gender: Gender;
+  status: PersonStatus;
   note: string;
+  markers: string[];
 };
 
 type ResourceNodeData = {
   name: string;
   type: string;
   strength: 'strong' | 'medium' | 'weak' | 'stress';
+};
+
+type RelationTool = {
+  id: string;
+  label: string;
+  type: 'straight' | 'smoothstep';
+  style?: Edge['style'];
+  animated?: boolean;
+  markerEnd?: Edge['markerEnd'];
 };
 
 const familyMembers = [
@@ -49,42 +61,95 @@ const supportFields = [
   { label: '外部資源', value: '里長、居服單位、日照中心待評估' },
 ];
 
+const relationTools: Record<string, RelationTool> = {
+  marriage: { id: 'marriage', label: '結婚', type: 'straight' },
+  cohabitation: { id: 'cohabitation', label: '同居', type: 'straight', style: { strokeDasharray: '8 6' } },
+  separation: { id: 'separation', label: '分居', type: 'straight', style: { strokeDasharray: '12 5' } },
+  divorce: { id: 'divorce', label: '離婚', type: 'straight', style: { stroke: '#b91c1c' } },
+  remarriage: { id: 'remarriage', label: '再婚', type: 'straight', style: { stroke: '#2f9c75' } },
+  affair: { id: 'affair', label: '外遇', type: 'smoothstep', style: { strokeDasharray: '3 6' } },
+  committed: { id: 'committed', label: '承諾關係', type: 'straight', style: { strokeWidth: 2 } },
+  'biological-child': { id: 'biological-child', label: '親生子女', type: 'smoothstep' },
+  adopted: { id: 'adopted', label: '收養', type: 'smoothstep', style: { strokeDasharray: '8 6' } },
+  foster: { id: 'foster', label: '寄養', type: 'smoothstep', style: { strokeDasharray: '2 6' } },
+  twins: { id: 'twins', label: '雙胞胎', type: 'smoothstep', style: { strokeWidth: 2 } },
+  'identical-twins': { id: 'identical-twins', label: '同卵雙胞胎', type: 'smoothstep', style: { strokeWidth: 3 } },
+  close: { id: 'close', label: '親近', type: 'straight', style: { strokeWidth: 3 } },
+  distant: { id: 'distant', label: '疏離', type: 'straight', style: { strokeDasharray: '7 7' } },
+  conflict: { id: 'conflict', label: '衝突', type: 'smoothstep', style: { stroke: '#b45309' } },
+  hostile: { id: 'hostile', label: '敵意', type: 'smoothstep', style: { stroke: '#b91c1c', strokeWidth: 2 } },
+  fused: { id: 'fused', label: '融合', type: 'straight', style: { strokeWidth: 4 } },
+  'close-hostile': { id: 'close-hostile', label: '親近且敵意', type: 'smoothstep', style: { stroke: '#b45309', strokeWidth: 3 } },
+  'emotional-abuse': {
+    id: 'emotional-abuse',
+    label: '情緒虐待',
+    type: 'smoothstep',
+    style: { stroke: '#be123c' },
+    markerEnd: { type: MarkerType.ArrowClosed },
+  },
+  'physical-abuse': {
+    id: 'physical-abuse',
+    label: '身體虐待',
+    type: 'smoothstep',
+    style: { stroke: '#be123c', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed },
+  },
+  'sexual-abuse': {
+    id: 'sexual-abuse',
+    label: '性虐待',
+    type: 'smoothstep',
+    style: { stroke: '#be123c', strokeDasharray: '4 4' },
+    markerEnd: { type: MarkerType.ArrowClosed },
+  },
+  caregiver: {
+    id: 'caregiver',
+    label: '照顧者',
+    type: 'smoothstep',
+    animated: true,
+    markerEnd: { type: MarkerType.ArrowClosed },
+  },
+  cutoff: { id: 'cutoff', label: '截斷', type: 'straight', style: { strokeDasharray: '2 5' } },
+  repair: { id: 'repair', label: '關係修復', type: 'smoothstep', style: { stroke: '#2f9c75' }, animated: true },
+};
+
+const defaultRelationTool: RelationTool = relationTools['biological-child'];
+
 const initialGenogramNodes: Node<PersonNodeData>[] = [
   {
     id: 'grandfather',
     type: 'person',
     position: { x: 120, y: 40 },
-    data: { name: '林父', role: '父親', gender: 'male', status: 'deceased', note: '1941-2015' },
+    data: { name: '林父', role: '父親', gender: 'male', status: 'deceased', note: '1941-2015', markers: [] },
   },
   {
     id: 'grandmother',
     type: 'person',
     position: { x: 300, y: 40 },
-    data: { name: '陳母', role: '母親', gender: 'female', status: 'none', note: '' },
+    data: { name: '陳母', role: '母親', gender: 'female', status: 'none', note: '', markers: [] },
   },
   {
     id: 'client',
     type: 'person',
     position: { x: 190, y: 210 },
-    data: { name: '林女士', role: '個案本人', gender: 'female', status: 'index', note: '福利資格待確認' },
+    data: { name: '林女士', role: '個案本人', gender: 'female', status: 'index', note: '福利資格待確認', markers: ['身體疾病'] },
   },
   {
     id: 'spouse',
     type: 'person',
     position: { x: 430, y: 210 },
-    data: { name: '王先生', role: '配偶', gender: 'male', status: 'none', note: '分居' },
+    data: { name: '王先生', role: '配偶', gender: 'male', status: 'none', note: '分居', markers: [] },
   },
   {
     id: 'daughter',
     type: 'person',
     position: { x: 240, y: 390 },
-    data: { name: '林小安', role: '女兒/主要照顧者', gender: 'female', status: 'caregiver', note: '照顧壓力高' },
+    data: { name: '林小安', role: '女兒/主要照顧者', gender: 'female', status: 'caregiver', note: '照顧壓力高', markers: [] },
   },
   {
     id: 'son',
     type: 'person',
     position: { x: 430, y: 390 },
-    data: { name: '林小宇', role: '兒子', gender: 'male', status: 'none', note: '外縣市工作' },
+    data: { name: '林小宇', role: '兒子', gender: 'male', status: 'none', note: '外縣市工作', markers: [] },
   },
 ];
 
@@ -116,7 +181,8 @@ function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) {
 
   return (
     <div className={`genogram-node ${selected ? 'selected' : ''}`}>
-      <Handle type="target" position={Position.Top} />
+      <Handle className="visible-handle" type="target" position={Position.Top} />
+      <Handle className="visible-handle left-handle" type="target" position={Position.Left} />
       <div className={shapeClass}>
         {data.gender === 'male' && <Square size={38} />}
         {data.gender === 'female' && <Circle size={40} />}
@@ -127,7 +193,15 @@ function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) {
       <strong>{data.name}</strong>
       <span>{data.role}</span>
       {data.note && <em>{data.note}</em>}
-      <Handle type="source" position={Position.Bottom} />
+      {data.markers.length > 0 && (
+        <div className="node-marker-list">
+          {data.markers.slice(0, 3).map((marker) => (
+            <small key={marker}>{marker}</small>
+          ))}
+        </div>
+      )}
+      <Handle className="visible-handle" type="source" position={Position.Bottom} />
+      <Handle className="visible-handle right-handle" type="source" position={Position.Right} />
     </div>
   );
 }
@@ -135,11 +209,11 @@ function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) {
 function ResourceNode({ data }: NodeProps<Node<ResourceNodeData>>) {
   return (
     <div className={`resource-node ${data.strength}`}>
-      <Handle type="target" position={Position.Top} />
+      <Handle className="visible-handle" type="target" position={Position.Top} />
       <Home size={22} />
       <strong>{data.name}</strong>
       <span>{data.type}</span>
-      <Handle type="source" position={Position.Bottom} />
+      <Handle className="visible-handle" type="source" position={Position.Bottom} />
     </div>
   );
 }
@@ -149,6 +223,10 @@ const nodeTypes = {
   resource: ResourceNode,
 };
 
+function isRelationSymbol(symbol: GenogramSymbol) {
+  return symbol.group === '伴侶關係' || symbol.group === '親子與出生事件' || symbol.group === '互動關係';
+}
+
 export function FamilySupportPage() {
   const [activeTab, setActiveTab] = useState<FamilyTab>('form');
   const [genogramNodes, setGenogramNodes, onGenogramNodesChange] = useNodesState(initialGenogramNodes);
@@ -156,6 +234,7 @@ export function FamilySupportPage() {
   const [ecogramNodes, , onEcogramNodesChange] = useNodesState(initialEcogramNodes);
   const [ecogramEdges, , onEcogramEdgesChange] = useEdgesState(initialEcogramEdges);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('client');
+  const [activeRelationTool, setActiveRelationTool] = useState<RelationTool>(defaultRelationTool);
 
   const selectedPerson = genogramNodes.find((node) => node.id === selectedPersonId);
   const selectedLegend = useMemo(
@@ -167,7 +246,7 @@ export function FamilySupportPage() {
     [],
   );
 
-  const addPerson = (gender: PersonNodeData['gender'] = 'female') => {
+  const addPerson = (gender: Gender = 'female') => {
     const id = `person-${Date.now()}`;
     const nextPosition = {
       x: 120 + (genogramNodes.length % 4) * 180,
@@ -180,12 +259,14 @@ export function FamilySupportPage() {
         id,
         type: 'person',
         position: nextPosition,
+        selected: true,
         data: {
           name: '新成員',
           role: '家庭成員',
           gender,
           status: 'none',
           note: '',
+          markers: [],
         },
       },
     ]);
@@ -220,21 +301,59 @@ export function FamilySupportPage() {
     );
   };
 
+  const applySymbol = (symbol: GenogramSymbol) => {
+    if (isRelationSymbol(symbol)) {
+      setActiveRelationTool(relationTools[symbol.id] ?? { id: symbol.id, label: symbol.label, type: 'smoothstep' });
+      return;
+    }
+
+    if (!selectedPerson) return;
+
+    if (symbol.id === 'male' || symbol.id === 'female' || symbol.id === 'unknown' || symbol.id === 'nonbinary') {
+      updateSelectedPerson('gender', symbol.id);
+      return;
+    }
+
+    if (symbol.id === 'index-person') {
+      updateSelectedPerson('status', 'index');
+      return;
+    }
+
+    if (symbol.id === 'death') {
+      updateSelectedPerson('status', 'deceased');
+      return;
+    }
+
+    if (symbol.id === 'caregiver') {
+      updateSelectedPerson('status', 'caregiver');
+      return;
+    }
+
+    const nextMarkers = selectedPerson.data.markers.includes(symbol.label)
+      ? selectedPerson.data.markers.filter((marker) => marker !== symbol.label)
+      : [...selectedPerson.data.markers, symbol.label];
+
+    updateSelectedPerson('markers', nextMarkers);
+  };
+
   const onConnect = useCallback(
     (connection: Connection) => {
       setGenogramEdges((current) =>
         addEdge(
           {
             ...connection,
-            type: 'smoothstep',
-            label: '新關係',
-            markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+            id: `edge-${Date.now()}`,
+            type: activeRelationTool.type,
+            label: activeRelationTool.label,
+            animated: activeRelationTool.animated,
+            style: activeRelationTool.style,
+            markerEnd: activeRelationTool.markerEnd ?? { type: MarkerType.ArrowClosed, width: 14, height: 14 },
           },
           current,
         ),
       );
     },
-    [setGenogramEdges],
+    [activeRelationTool, setGenogramEdges],
   );
 
   const onSelectionChange = useCallback((selection: OnSelectionChangeParams) => {
@@ -349,15 +468,28 @@ export function FamilySupportPage() {
                 新增非二元
               </button>
             </div>
-            {selectedLegend.slice(1, 4).map((group) => (
+            <div className="active-relation-tool">
+              <strong>目前連線類型</strong>
+              <span>{activeRelationTool.label}</span>
+              <small>從人物節點的綠色把手拖到另一個人物，即可建立此關係。</small>
+            </div>
+            {selectedLegend.map((group) => (
               <div key={group.group}>
                 <strong>{group.group}</strong>
-                {group.symbols.slice(0, 6).map((symbol) => {
+                {group.symbols.map((symbol) => {
                   const Icon = symbol.icon;
+                  const isRelation = isRelationSymbol(symbol);
+                  const isActiveRelation = activeRelationTool.id === symbol.id;
+                  const isAppliedMarker = selectedPerson?.data.markers.includes(symbol.label);
                   return (
-                    <button type="button" key={symbol.id}>
+                    <button
+                      type="button"
+                      key={symbol.id}
+                      className={isActiveRelation || isAppliedMarker ? 'active-tool' : ''}
+                      onClick={() => applySymbol(symbol)}
+                    >
                       <Icon size={16} />
-                      {symbol.label}
+                      {isRelation ? `線：${symbol.label}` : symbol.label}
                     </button>
                   );
                 })}
@@ -367,10 +499,7 @@ export function FamilySupportPage() {
           <section className="panel graph-panel">
             <ReactFlow
               nodes={genogramNodes}
-              edges={genogramEdges.map((edge) => ({
-                ...edge,
-                markerEnd: edge.markerEnd ?? { type: MarkerType.ArrowClosed, width: 14, height: 14 },
-              }))}
+              edges={genogramEdges}
               nodeTypes={nodeTypes}
               onNodesChange={onGenogramNodesChange}
               onEdgesChange={onGenogramEdgesChange}
@@ -404,9 +533,7 @@ export function FamilySupportPage() {
                   性別符號
                   <select
                     value={selectedPerson.data.gender}
-                    onChange={(event) =>
-                      updateSelectedPerson('gender', event.target.value as PersonNodeData['gender'])
-                    }
+                    onChange={(event) => updateSelectedPerson('gender', event.target.value as Gender)}
                   >
                     <option value="male">男性</option>
                     <option value="female">女性</option>
@@ -418,15 +545,28 @@ export function FamilySupportPage() {
                   標記
                   <select
                     value={selectedPerson.data.status}
-                    onChange={(event) =>
-                      updateSelectedPerson('status', event.target.value as PersonNodeData['status'])
-                    }
+                    onChange={(event) => updateSelectedPerson('status', event.target.value as PersonStatus)}
                   >
                     <option value="none">無</option>
                     <option value="index">個案本人</option>
                     <option value="caregiver">主要照顧者</option>
                     <option value="deceased">死亡</option>
                   </select>
+                </label>
+                <label>
+                  已套用符號
+                  <textarea
+                    value={selectedPerson.data.markers.join('、')}
+                    onChange={(event) =>
+                      updateSelectedPerson(
+                        'markers',
+                        event.target.value
+                          .split('、')
+                          .map((value) => value.trim())
+                          .filter(Boolean),
+                      )
+                    }
+                  />
                 </label>
                 <label>
                   備註
@@ -487,7 +627,7 @@ export function FamilySupportPage() {
         <section className="panel legend-panel">
           <div className="section-heading">
             <h3>標準家系圖符號系統</h3>
-            <p>第一版先完整列出產品要支援的專業符號分類，後續會逐步讓每個符號都能拖曳到畫布。</p>
+            <p>第一版先完整列出產品要支援的專業符號分類，並讓核心符號能套用到人物或下一條關係線。</p>
           </div>
           <div className="legend-group-grid">
             {selectedLegend.map((group) => (
