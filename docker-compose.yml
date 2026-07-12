@@ -1,0 +1,9 @@
+services:
+  arkai-web:
+    build:
+      context: .
+    image: arkai-web:latest
+    container_name: arkai-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
