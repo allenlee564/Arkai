@@ -538,7 +538,7 @@ export function FamilySupportPage() {
       </div>
 
       {activeTab === 'form' && (
-        <div className="family-layout">
+        <div className="family-layout form-only">
           <section className="panel form-panel">
             <div className="section-heading">
               <h3>家庭成員與支持摘要</h3>
@@ -564,23 +564,6 @@ export function FamilySupportPage() {
               ))}
             </div>
           </section>
-          <aside className="panel symbol-preview-panel">
-            <div className="section-heading">
-              <h3>常用符號快捷</h3>
-              <p>完整符號請切換到圖例頁籤。</p>
-            </div>
-            <div className="symbol-chip-list">
-              {genogramSymbols.slice(0, 14).map((symbol) => {
-                const Icon = symbol.icon;
-                return (
-                  <button type="button" key={symbol.id}>
-                    <Icon size={16} />
-                    {symbol.label}
-                  </button>
-                );
-              })}
-            </div>
-          </aside>
         </div>
       )}
 
