@@ -3,6 +3,7 @@ import { ClipboardCheck, FileUp, ShieldCheck } from 'lucide-react';
 import { EligibilityPage } from '../features/eligibility/EligibilityPage';
 import { LandingPage } from '../features/marketing/LandingPage';
 import { VariantBPage } from '../features/marketing/VariantBPage';
+import { VariantCPage } from '../features/marketing/VariantCPage';
 
 export type AppView = 'eligibility' | 'documents' | 'security';
 
@@ -57,6 +58,7 @@ export function App() {
 
   if (path.startsWith('/app')) return <ProductApp />;
   if (path.startsWith('/variant-b')) return <VariantBPage />;
+  if (path.startsWith('/variant-c')) return <VariantCPage />;
 
   return <LandingPage />;
 }
