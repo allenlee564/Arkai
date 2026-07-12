@@ -1660,19 +1660,51 @@ textarea:focus {
 }
 
 .graph-panel .visible-handle {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   border: 2px solid #ffffff;
   background: #2f9c75;
   opacity: 1;
 }
 
-.graph-panel .left-handle {
-  left: -7px;
+.graph-panel .top-source {
+  top: -8px;
+  left: calc(50% - 10px);
 }
 
-.graph-panel .right-handle {
-  right: -7px;
+.graph-panel .top-target {
+  top: -8px;
+  left: calc(50% + 10px);
+}
+
+.graph-panel .right-source {
+  top: calc(50% - 10px);
+  right: -8px;
+}
+
+.graph-panel .right-target {
+  top: calc(50% + 10px);
+  right: -8px;
+}
+
+.graph-panel .bottom-source {
+  bottom: -8px;
+  left: calc(50% - 10px);
+}
+
+.graph-panel .bottom-target {
+  bottom: -8px;
+  left: calc(50% + 10px);
+}
+
+.graph-panel .left-source {
+  top: calc(50% - 10px);
+  left: -8px;
+}
+
+.graph-panel .left-target {
+  top: calc(50% + 10px);
+  left: -8px;
 }
 
 .genogram-node,
@@ -1798,6 +1830,41 @@ textarea:focus {
 
 .relationship-legend .stress {
   border-left: 4px solid #b45309;
+}
+
+.relation-edge-label {
+  position: absolute;
+  z-index: 10;
+  border: 1px solid #d6e1e5;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #24353d;
+  padding: 3px 9px;
+  font-size: 0.74rem;
+  font-weight: 900;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 6px 14px rgba(24, 40, 47, 0.1);
+}
+
+.relation-edge-label.partner {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.relation-edge-label.parentChild {
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.relation-edge-label.interaction {
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
+.relation-edge-label.event {
+  border-color: #fecaca;
+  color: #b91c1c;
 }
 
 .danger-button {

@@ -2,15 +2,20 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   addEdge,
   Background,
+  BaseEdge,
+  ConnectionMode,
   Controls,
+  EdgeLabelRenderer,
   Handle,
   MarkerType,
   Position,
   ReactFlow,
+  getBezierPath,
   useEdgesState,
   useNodesState,
   type Connection,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
   type OnSelectionChangeParams,
@@ -22,6 +27,7 @@ import { genogramSymbols, symbolGroups, type GenogramSymbol } from './genogramSy
 type FamilyTab = 'form' | 'genogram' | 'ecogram' | 'legend';
 type Gender = 'male' | 'female' | 'unknown' | 'nonbinary';
 type PersonStatus = 'none' | 'index' | 'deceased' | 'caregiver';
+type RelationCategory = 'partner' | 'parentChild' | 'interaction' | 'event';
 
 type PersonNodeData = {
   name: string;
@@ -38,13 +44,26 @@ type ResourceNodeData = {
   strength: 'strong' | 'medium' | 'weak' | 'stress';
 };
 
+type RelationEdgeData = {
+  label: string;
+  category: RelationCategory;
+  lane: number;
+};
+
 type RelationTool = {
   id: string;
   label: string;
-  type: 'straight' | 'smoothstep';
+  category: RelationCategory;
   style?: Edge['style'];
   animated?: boolean;
   markerEnd?: Edge['markerEnd'];
+};
+
+const categoryLane: Record<RelationCategory, number> = {
+  partner: 0,
+  parentChild: 1,
+  interaction: -1,
+  event: 2,
 };
 
 const familyMembers = [
@@ -62,57 +81,84 @@ const supportFields = [
 ];
 
 const relationTools: Record<string, RelationTool> = {
-  marriage: { id: 'marriage', label: '結婚', type: 'straight' },
-  cohabitation: { id: 'cohabitation', label: '同居', type: 'straight', style: { strokeDasharray: '8 6' } },
-  separation: { id: 'separation', label: '分居', type: 'straight', style: { strokeDasharray: '12 5' } },
-  divorce: { id: 'divorce', label: '離婚', type: 'straight', style: { stroke: '#b91c1c' } },
-  remarriage: { id: 'remarriage', label: '再婚', type: 'straight', style: { stroke: '#2f9c75' } },
-  affair: { id: 'affair', label: '外遇', type: 'smoothstep', style: { strokeDasharray: '3 6' } },
-  committed: { id: 'committed', label: '承諾關係', type: 'straight', style: { strokeWidth: 2 } },
-  'biological-child': { id: 'biological-child', label: '親生子女', type: 'smoothstep' },
-  adopted: { id: 'adopted', label: '收養', type: 'smoothstep', style: { strokeDasharray: '8 6' } },
-  foster: { id: 'foster', label: '寄養', type: 'smoothstep', style: { strokeDasharray: '2 6' } },
-  twins: { id: 'twins', label: '雙胞胎', type: 'smoothstep', style: { strokeWidth: 2 } },
-  'identical-twins': { id: 'identical-twins', label: '同卵雙胞胎', type: 'smoothstep', style: { strokeWidth: 3 } },
-  close: { id: 'close', label: '親近', type: 'straight', style: { strokeWidth: 3 } },
-  distant: { id: 'distant', label: '疏離', type: 'straight', style: { strokeDasharray: '7 7' } },
-  conflict: { id: 'conflict', label: '衝突', type: 'smoothstep', style: { stroke: '#b45309' } },
-  hostile: { id: 'hostile', label: '敵意', type: 'smoothstep', style: { stroke: '#b91c1c', strokeWidth: 2 } },
-  fused: { id: 'fused', label: '融合', type: 'straight', style: { strokeWidth: 4 } },
-  'close-hostile': { id: 'close-hostile', label: '親近且敵意', type: 'smoothstep', style: { stroke: '#b45309', strokeWidth: 3 } },
+  marriage: { id: 'marriage', label: '結婚', category: 'partner' },
+  cohabitation: { id: 'cohabitation', label: '同居', category: 'partner', style: { strokeDasharray: '8 6' } },
+  separation: { id: 'separation', label: '分居', category: 'partner', style: { strokeDasharray: '12 5' } },
+  divorce: { id: 'divorce', label: '離婚', category: 'partner', style: { stroke: '#b91c1c' } },
+  remarriage: { id: 'remarriage', label: '再婚', category: 'partner', style: { stroke: '#2f9c75' } },
+  affair: { id: 'affair', label: '外遇', category: 'partner', style: { strokeDasharray: '3 6' } },
+  committed: { id: 'committed', label: '承諾關係', category: 'partner', style: { strokeWidth: 2 } },
+  'biological-child': { id: 'biological-child', label: '親生子女', category: 'parentChild' },
+  adopted: { id: 'adopted', label: '收養', category: 'parentChild', style: { strokeDasharray: '8 6' } },
+  foster: { id: 'foster', label: '寄養', category: 'parentChild', style: { strokeDasharray: '2 6' } },
+  twins: { id: 'twins', label: '雙胞胎', category: 'parentChild', style: { strokeWidth: 2 } },
+  'identical-twins': { id: 'identical-twins', label: '同卵雙胞胎', category: 'parentChild', style: { strokeWidth: 3 } },
+  miscarriage: { id: 'miscarriage', label: '流產', category: 'event', style: { strokeDasharray: '4 4' } },
+  stillbirth: { id: 'stillbirth', label: '死胎', category: 'event', style: { stroke: '#b91c1c' } },
+  abortion: { id: 'abortion', label: '墮胎', category: 'event', style: { stroke: '#b45309' } },
+  'sperm-donor': { id: 'sperm-donor', label: '捐精者', category: 'event', style: { strokeDasharray: '2 5' } },
+  close: { id: 'close', label: '親近', category: 'interaction', style: { strokeWidth: 3 } },
+  distant: { id: 'distant', label: '疏離', category: 'interaction', style: { strokeDasharray: '7 7' } },
+  conflict: { id: 'conflict', label: '衝突', category: 'interaction', style: { stroke: '#b45309' } },
+  hostile: { id: 'hostile', label: '敵意', category: 'interaction', style: { stroke: '#b91c1c', strokeWidth: 2 } },
+  fused: { id: 'fused', label: '融合', category: 'interaction', style: { strokeWidth: 4 } },
+  'close-hostile': { id: 'close-hostile', label: '親近且敵意', category: 'interaction', style: { stroke: '#b45309', strokeWidth: 3 } },
   'emotional-abuse': {
     id: 'emotional-abuse',
     label: '情緒虐待',
-    type: 'smoothstep',
+    category: 'interaction',
     style: { stroke: '#be123c' },
     markerEnd: { type: MarkerType.ArrowClosed },
   },
   'physical-abuse': {
     id: 'physical-abuse',
     label: '身體虐待',
-    type: 'smoothstep',
+    category: 'interaction',
     style: { stroke: '#be123c', strokeWidth: 2 },
     markerEnd: { type: MarkerType.ArrowClosed },
   },
   'sexual-abuse': {
     id: 'sexual-abuse',
     label: '性虐待',
-    type: 'smoothstep',
+    category: 'interaction',
     style: { stroke: '#be123c', strokeDasharray: '4 4' },
     markerEnd: { type: MarkerType.ArrowClosed },
   },
   caregiver: {
     id: 'caregiver',
     label: '照顧者',
-    type: 'smoothstep',
+    category: 'interaction',
     animated: true,
     markerEnd: { type: MarkerType.ArrowClosed },
   },
-  cutoff: { id: 'cutoff', label: '截斷', type: 'straight', style: { strokeDasharray: '2 5' } },
-  repair: { id: 'repair', label: '關係修復', type: 'smoothstep', style: { stroke: '#2f9c75' }, animated: true },
+  cutoff: { id: 'cutoff', label: '截斷', category: 'interaction', style: { strokeDasharray: '2 5' } },
+  repair: { id: 'repair', label: '關係修復', category: 'interaction', style: { stroke: '#2f9c75' }, animated: true },
 };
 
-const defaultRelationTool: RelationTool = relationTools['biological-child'];
+const defaultRelationTool = relationTools['biological-child'];
+
+function makeRelationEdge(
+  id: string,
+  source: string,
+  target: string,
+  tool: RelationTool,
+  laneOffset = 0,
+): Edge<RelationEdgeData> {
+  return {
+    id,
+    source,
+    target,
+    type: 'genogramRelation',
+    animated: tool.animated,
+    style: tool.style,
+    markerEnd: tool.markerEnd,
+    data: {
+      label: tool.label,
+      category: tool.category,
+      lane: categoryLane[tool.category] + laneOffset,
+    },
+  };
+}
 
 const initialGenogramNodes: Node<PersonNodeData>[] = [
   {
@@ -153,12 +199,13 @@ const initialGenogramNodes: Node<PersonNodeData>[] = [
   },
 ];
 
-const initialGenogramEdges: Edge[] = [
-  { id: 'e-grandparents', source: 'grandfather', target: 'grandmother', type: 'straight', label: '結婚' },
-  { id: 'e-parent-client', source: 'grandfather', target: 'client', type: 'smoothstep', label: '親子' },
-  { id: 'e-spouse', source: 'client', target: 'spouse', type: 'straight', label: '分居', style: { strokeDasharray: '8 6' } },
-  { id: 'e-daughter', source: 'client', target: 'daughter', type: 'smoothstep', label: '親子' },
-  { id: 'e-son', source: 'client', target: 'son', type: 'smoothstep', label: '親子' },
+const initialGenogramEdges: Edge<RelationEdgeData>[] = [
+  makeRelationEdge('e-grandparents', 'grandfather', 'grandmother', relationTools.marriage),
+  makeRelationEdge('e-parent-client', 'grandfather', 'client', relationTools['biological-child']),
+  makeRelationEdge('e-spouse', 'client', 'spouse', relationTools.separation),
+  makeRelationEdge('e-daughter', 'client', 'daughter', relationTools['biological-child']),
+  makeRelationEdge('e-son', 'client', 'son', relationTools['biological-child']),
+  makeRelationEdge('e-client-daughter-close', 'client', 'daughter', relationTools.close),
 ];
 
 const initialEcogramNodes: Node<ResourceNodeData>[] = [
@@ -176,13 +223,80 @@ const initialEcogramEdges: Edge[] = [
   { id: 'eco-spouse', source: 'case', target: 'spouse-resource', label: '緊張', style: { stroke: '#b45309' } },
 ];
 
+function GenogramRelationEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  markerEnd,
+  style,
+  data,
+  selected,
+}: EdgeProps<Edge<RelationEdgeData>>) {
+  const lane = data?.lane ?? 0;
+  const label = data?.label ?? '';
+  const curvature = 0.22 + Math.min(Math.abs(lane), 4) * 0.08;
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+    curvature,
+  });
+
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={{
+          strokeWidth: selected ? 3 : 2,
+          ...style,
+        }}
+      />
+      <EdgeLabelRenderer>
+        <div
+          className={`relation-edge-label ${data?.category ?? ''}`}
+          style={{
+            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + lane * 24}px)`,
+          }}
+        >
+          {label}
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
 function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) {
   const shapeClass = `person-symbol ${data.gender} ${data.status}`;
 
   return (
     <div className={`genogram-node ${selected ? 'selected' : ''}`}>
-      <Handle className="visible-handle" type="target" position={Position.Top} />
-      <Handle className="visible-handle left-handle" type="target" position={Position.Left} />
+      {[
+        ['top-source', 'source', Position.Top],
+        ['top-target', 'target', Position.Top],
+        ['right-source', 'source', Position.Right],
+        ['right-target', 'target', Position.Right],
+        ['bottom-source', 'source', Position.Bottom],
+        ['bottom-target', 'target', Position.Bottom],
+        ['left-source', 'source', Position.Left],
+        ['left-target', 'target', Position.Left],
+      ].map(([id, type, position]) => (
+        <Handle
+          className={`visible-handle ${id}`}
+          id={id}
+          key={id}
+          type={type as 'source' | 'target'}
+          position={position as Position}
+        />
+      ))}
       <div className={shapeClass}>
         {data.gender === 'male' && <Square size={38} />}
         {data.gender === 'female' && <Circle size={40} />}
@@ -200,8 +314,6 @@ function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) {
           ))}
         </div>
       )}
-      <Handle className="visible-handle" type="source" position={Position.Bottom} />
-      <Handle className="visible-handle right-handle" type="source" position={Position.Right} />
     </div>
   );
 }
@@ -221,6 +333,10 @@ function ResourceNode({ data }: NodeProps<Node<ResourceNodeData>>) {
 const nodeTypes = {
   person: PersonNode,
   resource: ResourceNode,
+};
+
+const edgeTypes = {
+  genogramRelation: GenogramRelationEdge,
 };
 
 function isRelationSymbol(symbol: GenogramSymbol) {
@@ -303,7 +419,7 @@ export function FamilySupportPage() {
 
   const applySymbol = (symbol: GenogramSymbol) => {
     if (isRelationSymbol(symbol)) {
-      setActiveRelationTool(relationTools[symbol.id] ?? { id: symbol.id, label: symbol.label, type: 'smoothstep' });
+      setActiveRelationTool(relationTools[symbol.id] ?? { id: symbol.id, label: symbol.label, category: 'interaction' });
       return;
     }
 
@@ -338,22 +454,32 @@ export function FamilySupportPage() {
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (!connection.source || !connection.target || connection.source === connection.target) return;
+
+      const samePairCount = genogramEdges.filter(
+        (edge) =>
+          (edge.source === connection.source && edge.target === connection.target) ||
+          (edge.source === connection.target && edge.target === connection.source),
+      ).length;
+
       setGenogramEdges((current) =>
         addEdge(
           {
-            ...connection,
-            id: `edge-${Date.now()}`,
-            type: activeRelationTool.type,
-            label: activeRelationTool.label,
-            animated: activeRelationTool.animated,
-            style: activeRelationTool.style,
-            markerEnd: activeRelationTool.markerEnd ?? { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+            ...makeRelationEdge(
+              `edge-${Date.now()}`,
+              connection.source!,
+              connection.target!,
+              activeRelationTool,
+              samePairCount,
+            ),
+            sourceHandle: connection.sourceHandle,
+            targetHandle: connection.targetHandle,
           },
           current,
         ),
       );
     },
-    [activeRelationTool, setGenogramEdges],
+    [activeRelationTool, genogramEdges, setGenogramEdges],
   );
 
   const onSelectionChange = useCallback((selection: OnSelectionChangeParams) => {
@@ -471,7 +597,7 @@ export function FamilySupportPage() {
             <div className="active-relation-tool">
               <strong>目前連線類型</strong>
               <span>{activeRelationTool.label}</span>
-              <small>從人物節點的綠色把手拖到另一個人物，即可建立此關係。</small>
+              <small>每個角色四邊都有綠色把手，可從任意把手拖到任意角色建立關係。</small>
             </div>
             {selectedLegend.map((group) => (
               <div key={group.group}>
@@ -501,6 +627,8 @@ export function FamilySupportPage() {
               nodes={genogramNodes}
               edges={genogramEdges}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              connectionMode={ConnectionMode.Loose}
               onNodesChange={onGenogramNodesChange}
               onEdgesChange={onGenogramEdgesChange}
               onConnect={onConnect}
