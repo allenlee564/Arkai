@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { ClipboardCheck, FileUp, Network, ShieldCheck } from 'lucide-react';
+import { ClipboardCheck, FileUp, HeartPulse, Network, ShieldCheck } from 'lucide-react';
 import { EligibilityPage } from '../features/eligibility/EligibilityPage';
 import { FamilySupportPage } from '../features/family-support/FamilySupportPage';
+import { PhysiologicalAssessmentPage } from '../features/physiological/PhysiologicalAssessmentPage';
 import { LandingPage } from '../features/marketing/LandingPage';
 import { VariantBPage } from '../features/marketing/VariantBPage';
 import { VariantCPage } from '../features/marketing/VariantCPage';
 
-export type AppView = 'eligibility' | 'documents' | 'security' | 'family-support';
+export type AppView = 'eligibility' | 'documents' | 'security' | 'family-support' | 'physiological';
 
 const navItems = [
   { id: 'eligibility', label: '福利資格判定', icon: ClipboardCheck },
   { id: 'documents', label: '文件參照', icon: FileUp },
   { id: 'family-support', label: '家庭支持評估', icon: Network },
+  { id: 'physiological', label: '生理需求評估', icon: HeartPulse },
   { id: 'security', label: '權限紀錄', icon: ShieldCheck },
 ] as const;
 
@@ -50,7 +52,13 @@ function ProductApp() {
         </nav>
       </aside>
 
-      {activeView === 'family-support' ? <FamilySupportPage /> : <EligibilityPage activeView={activeView} />}
+      {activeView === 'family-support' ? (
+        <FamilySupportPage />
+      ) : activeView === 'physiological' ? (
+        <PhysiologicalAssessmentPage />
+      ) : (
+        <EligibilityPage activeView={activeView} />
+      )}
     </main>
   );
 }

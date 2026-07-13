@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { toPng } from 'html-to-image';
 import {
   addEdge,
   Background,
@@ -21,13 +22,14 @@ import {
   type OnSelectionChangeParams,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Circle, Diamond, Download, Home, Save, Square, Trash2, Triangle } from 'lucide-react';
+import { ChevronDown, Circle, Diamond, Download, FileImage, FileText, HeartHandshake, Home, Plus, Save, Square, Trash2, Triangle, Upload, UserRoundCheck } from 'lucide-react';
 import { genogramSymbols, symbolGroups, type GenogramSymbol } from './genogramSymbols';
 
 type FamilyTab = 'form' | 'genogram' | 'ecogram' | 'legend';
 type Gender = 'male' | 'female' | 'unknown' | 'nonbinary';
 type PersonStatus = 'none' | 'index' | 'deceased' | 'caregiver';
 type RelationCategory = 'partner' | 'parentChild' | 'interaction' | 'event';
+type SupportLevel = 'high' | 'medium' | 'low' | 'none';
 
 type PersonNodeData = {
   name: string;
@@ -36,12 +38,20 @@ type PersonNodeData = {
   status: PersonStatus;
   note: string;
   markers: string[];
+  support: SupportLevel;
 };
 
 type ResourceNodeData = {
   name: string;
   type: string;
   strength: 'strong' | 'medium' | 'weak' | 'stress';
+};
+
+type ResourceStrength = ResourceNodeData['strength'];
+
+type EcogramEdgeData = {
+  strength: ResourceStrength;
+  label: string;
 };
 
 type RelationEdgeData = {
@@ -66,19 +76,12 @@ const categoryLane: Record<RelationCategory, number> = {
   event: 2,
 };
 
-const familyMembers = [
-  { name: '林女士', relation: '個案本人', support: '中', caregiver: '否', risk: '跌倒風險、文件待補' },
-  { name: '王先生', relation: '配偶', support: '低', caregiver: '否', risk: '長期分居' },
-  { name: '林小安', relation: '女兒', support: '高', caregiver: '是', risk: '照顧壓力高' },
-  { name: '林小宇', relation: '兒子', support: '中', caregiver: '否', risk: '外縣市工作' },
-];
-
-const supportFields = [
-  { label: '主要照顧者', value: '林小安（女兒）' },
-  { label: '家庭支持強度', value: '中度支持，主要依賴單一照顧者' },
-  { label: '目前風險', value: '照顧者負荷高、福利資格證明待補' },
-  { label: '外部資源', value: '里長、居服單位、日照中心待評估' },
-];
+const supportLabels: Record<SupportLevel, string> = {
+  high: '高',
+  medium: '中',
+  low: '低',
+  none: '無',
+};
 
 const relationTools: Record<string, RelationTool> = {
   marriage: { id: 'marriage', label: '結婚', category: 'partner' },
@@ -165,37 +168,37 @@ const initialGenogramNodes: Node<PersonNodeData>[] = [
     id: 'grandfather',
     type: 'person',
     position: { x: 120, y: 40 },
-    data: { name: '林父', role: '父親', gender: 'male', status: 'deceased', note: '1941-2015', markers: [] },
+    data: { name: '林父', role: '父親', gender: 'male', status: 'deceased', note: '1941-2015', markers: [], support: 'none' },
   },
   {
     id: 'grandmother',
     type: 'person',
     position: { x: 300, y: 40 },
-    data: { name: '陳母', role: '母親', gender: 'female', status: 'none', note: '', markers: [] },
+    data: { name: '陳母', role: '母親', gender: 'female', status: 'none', note: '', markers: [], support: 'low' },
   },
   {
     id: 'client',
     type: 'person',
     position: { x: 190, y: 210 },
-    data: { name: '林女士', role: '個案本人', gender: 'female', status: 'index', note: '福利資格待確認', markers: ['身體疾病'] },
+    data: { name: '林女士', role: '個案本人', gender: 'female', status: 'index', note: '福利資格待確認', markers: ['身體疾病'], support: 'medium' },
   },
   {
     id: 'spouse',
     type: 'person',
     position: { x: 430, y: 210 },
-    data: { name: '王先生', role: '配偶', gender: 'male', status: 'none', note: '分居', markers: [] },
+    data: { name: '王先生', role: '配偶', gender: 'male', status: 'none', note: '分居', markers: [], support: 'low' },
   },
   {
     id: 'daughter',
     type: 'person',
     position: { x: 240, y: 390 },
-    data: { name: '林小安', role: '女兒/主要照顧者', gender: 'female', status: 'caregiver', note: '照顧壓力高', markers: [] },
+    data: { name: '林小安', role: '女兒/主要照顧者', gender: 'female', status: 'caregiver', note: '照顧壓力高', markers: [], support: 'high' },
   },
   {
     id: 'son',
     type: 'person',
     position: { x: 430, y: 390 },
-    data: { name: '林小宇', role: '兒子', gender: 'male', status: 'none', note: '外縣市工作', markers: [] },
+    data: { name: '林小宇', role: '兒子', gender: 'male', status: 'none', note: '外縣市工作', markers: [], support: 'medium' },
   },
 ];
 
@@ -216,11 +219,23 @@ const initialEcogramNodes: Node<ResourceNodeData>[] = [
   { id: 'spouse-resource', type: 'resource', position: { x: 660, y: 390 }, data: { name: '配偶', type: '壓力來源', strength: 'stress' } },
 ];
 
-const initialEcogramEdges: Edge[] = [
-  { id: 'eco-daughter', source: 'case', target: 'daughter-care', label: '強支持', animated: true },
-  { id: 'eco-daycare', source: 'case', target: 'daycare', label: '待連結', style: { strokeDasharray: '8 6' } },
-  { id: 'eco-hospital', source: 'case', target: 'hospital', label: '中度支持' },
-  { id: 'eco-spouse', source: 'case', target: 'spouse-resource', label: '緊張', style: { stroke: '#b45309' } },
+const ecogramRelationStyles: Record<ResourceStrength, { label: string; style: Edge['style']; animated?: boolean }> = {
+  strong: { label: '強支持', style: { stroke: '#16805f', strokeWidth: 4 }, animated: true },
+  medium: { label: '中度支持', style: { stroke: '#397a9e', strokeWidth: 2 } },
+  weak: { label: '弱連結', style: { stroke: '#7b8790', strokeDasharray: '8 6' } },
+  stress: { label: '壓力／衝突', style: { stroke: '#b45309', strokeWidth: 2, strokeDasharray: '3 4' } },
+};
+
+function makeEcogramEdge(id: string, source: string, target: string, strength: ResourceStrength): Edge<EcogramEdgeData> {
+  const relation = ecogramRelationStyles[strength];
+  return { id, source, target, label: relation.label, data: { strength, label: relation.label }, style: relation.style, animated: relation.animated };
+}
+
+const initialEcogramEdges: Edge<EcogramEdgeData>[] = [
+  makeEcogramEdge('eco-daughter', 'case', 'daughter-care', 'strong'),
+  makeEcogramEdge('eco-daycare', 'case', 'daycare', 'weak'),
+  makeEcogramEdge('eco-hospital', 'case', 'hospital', 'medium'),
+  makeEcogramEdge('eco-spouse', 'case', 'spouse-resource', 'stress'),
 ];
 
 function GenogramRelationEdge({
@@ -319,14 +334,16 @@ function PersonNode({ data, selected }: NodeProps<Node<PersonNodeData>>) {
   );
 }
 
-function ResourceNode({ data }: NodeProps<Node<ResourceNodeData>>) {
+function ResourceNode({ data, selected }: NodeProps<Node<ResourceNodeData>>) {
   return (
-    <div className={`resource-node ${data.strength}`}>
-      <Handle className="visible-handle" type="target" position={Position.Top} />
+    <div className={`resource-node ${data.strength} ${selected ? 'selected' : ''}`}>
+      <Handle className="visible-handle" id="top" type="source" position={Position.Top} />
+      <Handle className="visible-handle" id="right" type="source" position={Position.Right} />
       <Home size={22} />
       <strong>{data.name}</strong>
       <span>{data.type}</span>
-      <Handle className="visible-handle" type="source" position={Position.Bottom} />
+      <Handle className="visible-handle" id="bottom" type="source" position={Position.Bottom} />
+      <Handle className="visible-handle" id="left" type="source" position={Position.Left} />
     </div>
   );
 }
@@ -348,14 +365,38 @@ export function FamilySupportPage() {
   const [activeTab, setActiveTab] = useState<FamilyTab>('form');
   const [genogramNodes, setGenogramNodes, onGenogramNodesChange] = useNodesState(initialGenogramNodes);
   const [genogramEdges, setGenogramEdges, onGenogramEdgesChange] = useEdgesState(initialGenogramEdges);
-  const [ecogramNodes, , onEcogramNodesChange] = useNodesState(initialEcogramNodes);
-  const [ecogramEdges, , onEcogramEdgesChange] = useEdgesState(initialEcogramEdges);
+  const [ecogramNodes, setEcogramNodes, onEcogramNodesChange] = useNodesState(initialEcogramNodes);
+  const [ecogramEdges, setEcogramEdges, onEcogramEdgesChange] = useEdgesState(initialEcogramEdges);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('client');
   const [selectedEdgeId, setSelectedEdgeId] = useState<string>('');
   const [activeRelationTool, setActiveRelationTool] = useState<RelationTool>(defaultRelationTool);
+  const [selectedResourceId, setSelectedResourceId] = useState('case');
+  const [selectedEcogramEdgeId, setSelectedEcogramEdgeId] = useState('');
+  const [activeEcogramStrength, setActiveEcogramStrength] = useState<ResourceStrength>('medium');
+  const [openToolboxGroups, setOpenToolboxGroups] = useState<string[]>([]);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const ecogramImportInputRef = useRef<HTMLInputElement>(null);
+  const genogramGraphRef = useRef<HTMLElement>(null);
+  const ecogramGraphRef = useRef<HTMLElement>(null);
 
   const selectedPerson = genogramNodes.find((node) => node.id === selectedPersonId);
   const selectedEdge = genogramEdges.find((edge) => edge.id === selectedEdgeId);
+  const selectedResource = ecogramNodes.find((node) => node.id === selectedResourceId);
+  const selectedEcogramEdge = ecogramEdges.find((edge) => edge.id === selectedEcogramEdgeId);
+  const familySupportFields = useMemo(() => {
+    const indexPerson = genogramNodes.find((node) => node.data.status === 'index');
+    const caregivers = genogramNodes.filter((node) => node.data.status === 'caregiver');
+    const supportedMembers = genogramNodes.filter((node) => node.data.support === 'high' || node.data.support === 'medium');
+    const risks = genogramNodes.map((node) => node.data.note).filter(Boolean).slice(0, 3);
+    const resources = ecogramNodes.filter((node) => node.id !== 'case').map((node) => node.data.name).slice(0, 4);
+    return [
+      { label: '個案本人', value: indexPerson?.data.name || '尚未指定', tone: 'index' },
+      { label: '主要照顧者', value: caregivers.map((node) => node.data.name).join('、') || '尚未指定', tone: 'caregiver' },
+      { label: '家庭支持強度', value: `${supportedMembers.length} 位成員提供中度以上支持`, tone: '' },
+      { label: '目前風險', value: risks.join('、') || '尚未填寫', tone: '' },
+      { label: '外部資源', value: resources.join('、') || '尚未建立', tone: 'wide' },
+    ];
+  }, [ecogramNodes, genogramNodes]);
   const selectedLegend = useMemo(
     () =>
       symbolGroups.map((group) => ({
@@ -386,10 +427,27 @@ export function FamilySupportPage() {
           status: 'none',
           note: '',
           markers: [],
+          support: 'medium',
         },
       },
     ]);
     setSelectedPersonId(id);
+  };
+
+  const addFamilyMember = () => {
+    addPerson('unknown');
+  };
+
+  const updateFamilyMember = <K extends keyof PersonNodeData>(id: string, key: K, value: PersonNodeData[K]) => {
+    setGenogramNodes((current) =>
+      current.map((node) => node.id === id ? { ...node, data: { ...node.data, [key]: value } } : node),
+    );
+  };
+
+  const deleteFamilyMember = (id: string) => {
+    setGenogramNodes((current) => current.filter((node) => node.id !== id));
+    setGenogramEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id));
+    if (selectedPersonId === id) setSelectedPersonId('');
   };
 
   const deleteSelectedPerson = () => {
@@ -500,22 +558,221 @@ export function FamilySupportPage() {
     setSelectedEdgeId(selectedNode ? '' : selectedRelation?.id ?? '');
   }, []);
 
+  const saveGenogram = () => {
+    localStorage.setItem('arkai-genogram', JSON.stringify({ version: 1, nodes: genogramNodes, edges: genogramEdges }));
+  };
+
+  const normalizePersonNodes = (nodes: Node<PersonNodeData>[]) =>
+    nodes.map((node) => ({ ...node, data: { ...node.data, support: node.data.support ?? 'medium' } }));
+
+  const loadGenogram = () => {
+    const saved = localStorage.getItem('arkai-genogram');
+    if (!saved) return;
+    try {
+      const diagram = JSON.parse(saved) as { nodes?: Node<PersonNodeData>[]; edges?: Edge<RelationEdgeData>[] };
+      if (!Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) return;
+      setGenogramNodes(normalizePersonNodes(diagram.nodes));
+      setGenogramEdges(diagram.edges);
+      setSelectedPersonId('');
+      setSelectedEdgeId('');
+    } catch {
+      // Ignore invalid browser data and keep the current diagram intact.
+    }
+  };
+
+  const exportGenogram = () => {
+    const content = JSON.stringify({ version: 1, nodes: genogramNodes, edges: genogramEdges }, null, 2);
+    const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `arkai-genogram-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importGenogram = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const diagram = JSON.parse(String(reader.result)) as { nodes?: Node<PersonNodeData>[]; edges?: Edge<RelationEdgeData>[] };
+        if (!Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) return;
+        setGenogramNodes(normalizePersonNodes(diagram.nodes));
+        setGenogramEdges(diagram.edges);
+        setSelectedPersonId('');
+        setSelectedEdgeId('');
+      } catch {
+        // Invalid files leave the current diagram unchanged.
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const saveEcogram = () => {
+    localStorage.setItem('arkai-ecogram', JSON.stringify({ version: 1, nodes: ecogramNodes, edges: ecogramEdges }));
+  };
+
+  const loadEcogram = () => {
+    const saved = localStorage.getItem('arkai-ecogram');
+    if (!saved) return;
+    try {
+      const diagram = JSON.parse(saved) as { nodes?: Node<ResourceNodeData>[]; edges?: Edge<EcogramEdgeData>[] };
+      if (!Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) return;
+      setEcogramNodes(diagram.nodes);
+      setEcogramEdges(diagram.edges);
+      setSelectedResourceId('');
+      setSelectedEcogramEdgeId('');
+    } catch {
+      // Ignore invalid browser data and keep the current diagram intact.
+    }
+  };
+
+  const downloadJson = (filename: string, data: object) => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportEcogram = () => {
+    downloadJson(`arkai-ecogram-${new Date().toISOString().slice(0, 10)}.json`, {
+      version: 1,
+      nodes: ecogramNodes,
+      edges: ecogramEdges,
+    });
+  };
+
+  const importEcogram = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const diagram = JSON.parse(String(reader.result)) as { nodes?: Node<ResourceNodeData>[]; edges?: Edge<EcogramEdgeData>[] };
+        if (!Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) return;
+        setEcogramNodes(diagram.nodes);
+        setEcogramEdges(diagram.edges);
+        setSelectedResourceId('');
+        setSelectedEcogramEdgeId('');
+      } catch {
+        // Invalid files leave the current diagram unchanged.
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const exportDiagramImage = async (
+    graph: { current: HTMLElement | null },
+    filename: string,
+    format: 'png' | 'pdf',
+  ) => {
+    const target = graph.current?.querySelector<HTMLElement>('.react-flow');
+    if (!target) return;
+
+    const dataUrl = await toPng(target, {
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+      pixelRatio: 2,
+      filter: (node) =>
+        !(node instanceof Element && (
+          node.classList.contains('react-flow__controls') ||
+          node.classList.contains('react-flow__handle')
+        )),
+    });
+
+    if (format === 'png') {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${filename}.png`;
+      link.click();
+      return;
+    }
+
+    const image = new Image();
+    image.src = dataUrl;
+    await image.decode();
+    const { jsPDF } = await import('jspdf');
+    const landscape = image.naturalWidth >= image.naturalHeight;
+    const pdf = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 10;
+    const scale = Math.min((pageWidth - margin * 2) / image.naturalWidth, (pageHeight - margin * 2) / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    pdf.addImage(dataUrl, 'PNG', (pageWidth - width) / 2, (pageHeight - height) / 2, width, height);
+    pdf.save(`${filename}.pdf`);
+  };
+
+  const addResource = (type: string) => {
+    const id = `resource-${Date.now()}`;
+    setEcogramNodes((current) => [
+      ...current.map((node) => ({ ...node, selected: false })),
+      {
+        id,
+        type: 'resource',
+        position: { x: 140 + (current.length % 3) * 240, y: 120 + Math.floor(current.length / 3) * 160 },
+        selected: true,
+        data: { name: `新${type}資源`, type, strength: 'medium' },
+      },
+    ]);
+    setSelectedResourceId(id);
+    setSelectedEcogramEdgeId('');
+  };
+
+  const updateSelectedResource = <K extends keyof ResourceNodeData>(key: K, value: ResourceNodeData[K]) => {
+    setEcogramNodes((current) => current.map((node) => node.id === selectedResourceId ? { ...node, data: { ...node.data, [key]: value } } : node));
+  };
+
+  const deleteSelectedResource = () => {
+    if (!selectedResourceId) return;
+    setEcogramNodes((current) => current.filter((node) => node.id !== selectedResourceId));
+    setEcogramEdges((current) => current.filter((edge) => edge.source !== selectedResourceId && edge.target !== selectedResourceId));
+    setSelectedResourceId('');
+  };
+
+  const updateEcogramEdgeStrength = (strength: ResourceStrength) => {
+    if (!selectedEcogramEdgeId) return;
+    const relation = ecogramRelationStyles[strength];
+    setEcogramEdges((current) => current.map((edge) => edge.id === selectedEcogramEdgeId ? {
+      ...edge, label: relation.label, data: { strength, label: relation.label }, style: relation.style, animated: relation.animated,
+    } : edge));
+  };
+
+  const deleteSelectedEcogramEdge = () => {
+    setEcogramEdges((current) => current.filter((edge) => edge.id !== selectedEcogramEdgeId));
+    setSelectedEcogramEdgeId('');
+  };
+
+  const onEcogramConnect = useCallback((connection: Connection) => {
+    if (!connection.source || !connection.target || connection.source === connection.target) return;
+    setEcogramEdges((current) => addEdge({
+      ...makeEcogramEdge(`eco-edge-${Date.now()}`, connection.source!, connection.target!, activeEcogramStrength),
+      sourceHandle: connection.sourceHandle,
+      targetHandle: connection.targetHandle,
+    }, current));
+  }, [activeEcogramStrength, setEcogramEdges]);
+
+  const onEcogramSelectionChange = useCallback((selection: OnSelectionChangeParams) => {
+    const node = selection.nodes.find((item) => item.type === 'resource');
+    const edge = selection.edges[0];
+    setSelectedResourceId(node?.id ?? '');
+    setSelectedEcogramEdgeId(node ? '' : edge?.id ?? '');
+  }, []);
+
+  const toggleSymbolGroup = (group: string) => {
+    setOpenToolboxGroups((current) =>
+      current.includes(group) ? current.filter((item) => item !== group) : [...current, group],
+    );
+  };
+
   return (
     <section className="content family-support-page">
       <header className="page-header">
         <div>
           <p className="eyebrow">開案前 / 家庭支持評估</p>
           <h2>家系圖、生態圖與家庭支持表單</h2>
-        </div>
-        <div className="family-actions">
-          <button type="button" className="secondary">
-            <Save size={16} />
-            暫存
-          </button>
-          <button type="button" className="primary">
-            <Download size={16} />
-            匯出
-          </button>
         </div>
       </header>
 
@@ -541,25 +798,49 @@ export function FamilySupportPage() {
         <div className="family-layout form-only">
           <section className="panel form-panel">
             <div className="section-heading">
-              <h3>家庭成員與支持摘要</h3>
-              <p>第一版先以 mock 資料建立結構，後續可銜接家庭支持 API。</p>
+              <div>
+                <h3>家庭成員與支持摘要</h3>
+                <p>此處與家系圖共用同一份人物資料，修改後會立即同步。</p>
+              </div>
+              <button type="button" className="primary compact-button" onClick={addFamilyMember}>
+                <Plus size={16} />新增家庭成員
+              </button>
             </div>
             <div className="support-summary-grid">
-              {supportFields.map((field) => (
-                <div className="support-summary-item" key={field.label}>
+              {familySupportFields.map((field) => (
+                <div className={`support-summary-item ${field.tone ? `${field.tone}-summary` : ''}`} key={field.label}>
                   <span>{field.label}</span>
                   <strong>{field.value}</strong>
                 </div>
               ))}
             </div>
-            <div className="family-table">
-              {familyMembers.map((member) => (
-                <article key={member.name}>
-                  <strong>{member.name}</strong>
-                  <span>{member.relation}</span>
-                  <span>支持：{member.support}</span>
-                  <span>主要照顧者：{member.caregiver}</span>
-                  <p>{member.risk}</p>
+            <div className="family-member-editor-list">
+              {genogramNodes.map((member) => (
+                <article
+                  className={`family-member-editor ${member.data.status === 'index' ? 'index-member' : ''} ${member.data.status === 'caregiver' ? 'caregiver-member' : ''}`}
+                  key={member.id}
+                >
+                  {member.data.status === 'index' && (
+                    <div className="member-priority-badge index-badge"><UserRoundCheck size={16} />個案本人</div>
+                  )}
+                  {member.data.status === 'caregiver' && (
+                    <div className="member-priority-badge caregiver-badge"><HeartHandshake size={16} />主要照顧者</div>
+                  )}
+                  <label>姓名<input value={member.data.name} onChange={(event) => updateFamilyMember(member.id, 'name', event.target.value)} /></label>
+                  <label>關係／角色<input value={member.data.role} onChange={(event) => updateFamilyMember(member.id, 'role', event.target.value)} /></label>
+                  <label>性別<select value={member.data.gender} onChange={(event) => updateFamilyMember(member.id, 'gender', event.target.value as Gender)}>
+                    <option value="male">男性</option><option value="female">女性</option><option value="unknown">未知</option><option value="nonbinary">非二元</option>
+                  </select></label>
+                  <label>支持強度<select value={member.data.support ?? 'medium'} onChange={(event) => updateFamilyMember(member.id, 'support', event.target.value as SupportLevel)}>
+                    {Object.entries(supportLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select></label>
+                  <label>圖示標記<select value={member.data.status} onChange={(event) => updateFamilyMember(member.id, 'status', event.target.value as PersonStatus)}>
+                    <option value="none">無</option><option value="index">個案本人</option><option value="caregiver">主要照顧者</option><option value="deceased">死亡</option>
+                  </select></label>
+                  <label className="member-note-field">備註<input value={member.data.note} onChange={(event) => updateFamilyMember(member.id, 'note', event.target.value)} /></label>
+                  <button type="button" className="icon-button danger-icon" title={`刪除${member.data.name}`} aria-label={`刪除${member.data.name}`} onClick={() => deleteFamilyMember(member.id)}>
+                    <Trash2 size={17} />
+                  </button>
                 </article>
               ))}
             </div>
@@ -571,54 +852,78 @@ export function FamilySupportPage() {
         <div className="editor-shell">
           <aside className="panel editor-toolbox">
             <h3>符號工具箱</h3>
-            <div>
-              <strong>新增人物</strong>
-              <button type="button" onClick={() => addPerson('male')}>
-                <Square size={16} />
-                新增男性
+            <div className={`symbol-tool-group ${openToolboxGroups.includes('diagram-data') ? 'open' : ''}`}>
+              <button type="button" className="symbol-tool-toggle" aria-expanded={openToolboxGroups.includes('diagram-data')} onClick={() => toggleSymbolGroup('diagram-data')}>
+                <strong>家系圖資料</strong>
+                <ChevronDown size={16} />
               </button>
-              <button type="button" onClick={() => addPerson('female')}>
-                <Circle size={16} />
-                新增女性
-              </button>
-              <button type="button" onClick={() => addPerson('unknown')}>
-                <Diamond size={16} />
-                新增未知
-              </button>
-              <button type="button" onClick={() => addPerson('nonbinary')}>
-                <Triangle size={16} />
-                新增非二元
-              </button>
+              {openToolboxGroups.includes('diagram-data') && <div className="symbol-tool-content">
+                <button type="button" onClick={saveGenogram}><Save size={16} />儲存到本機</button>
+                <button type="button" onClick={loadGenogram}><Upload size={16} />載入本機版本</button>
+                <button type="button" onClick={exportGenogram}><Download size={16} />匯出 JSON</button>
+                <button type="button" onClick={() => importInputRef.current?.click()}><Upload size={16} />匯入 JSON</button>
+                <button type="button" onClick={() => exportDiagramImage(genogramGraphRef, `arkai-genogram-${new Date().toISOString().slice(0, 10)}`, 'png')}><FileImage size={16} />匯出 PNG</button>
+                <button type="button" onClick={() => exportDiagramImage(genogramGraphRef, `arkai-genogram-${new Date().toISOString().slice(0, 10)}`, 'pdf')}><FileText size={16} />匯出 PDF</button>
+                <input ref={importInputRef} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => {
+                  importGenogram(event.target.files?.[0]);
+                  event.target.value = '';
+                }} />
+              </div>}
             </div>
-            <div className="active-relation-tool">
-              <strong>目前連線類型</strong>
-              <span>{activeRelationTool.label}</span>
-              <small>每個角色四邊都有綠色把手，可從任意把手拖到任意角色建立關係。</small>
+            <div className={`symbol-tool-group ${openToolboxGroups.includes('add-person') ? 'open' : ''}`}>
+              <button type="button" className="symbol-tool-toggle" aria-expanded={openToolboxGroups.includes('add-person')} onClick={() => toggleSymbolGroup('add-person')}>
+                <strong>新增人物</strong>
+                <ChevronDown size={16} />
+              </button>
+              {openToolboxGroups.includes('add-person') && <div className="symbol-tool-content">
+                <button type="button" onClick={() => addPerson('male')}><Square size={16} />新增男性</button>
+                <button type="button" onClick={() => addPerson('female')}><Circle size={16} />新增女性</button>
+                <button type="button" onClick={() => addPerson('unknown')}><Diamond size={16} />新增未知</button>
+                <button type="button" onClick={() => addPerson('nonbinary')}><Triangle size={16} />新增非二元</button>
+              </div>}
             </div>
-            {selectedLegend.map((group) => (
-              <div key={group.group}>
-                <strong>{group.group}</strong>
-                {group.symbols.map((symbol) => {
-                  const Icon = symbol.icon;
-                  const isRelation = isRelationSymbol(symbol);
-                  const isActiveRelation = activeRelationTool.id === symbol.id;
-                  const isAppliedMarker = selectedPerson?.data.markers.includes(symbol.label);
-                  return (
-                    <button
-                      type="button"
-                      key={symbol.id}
-                      className={isActiveRelation || isAppliedMarker ? 'active-tool' : ''}
-                      onClick={() => applySymbol(symbol)}
-                    >
-                      <Icon size={16} />
-                      {isRelation ? `線：${symbol.label}` : symbol.label}
-                    </button>
-                  );
-                })}
+            {selectedLegend.map((group) => {
+              const isOpen = openToolboxGroups.includes(group.group);
+              return (
+              <div className={`symbol-tool-group ${isOpen ? 'open' : ''}`} key={group.group}>
+                <button
+                  type="button"
+                  className="symbol-tool-toggle"
+                  aria-expanded={isOpen}
+                  onClick={() => toggleSymbolGroup(group.group)}
+                >
+                  <strong>{group.group}</strong>
+                  <span>{group.symbols.length}</span>
+                  <ChevronDown size={16} />
+                </button>
+                {isOpen && <div className="symbol-tool-content">
+                  {group.symbols.map((symbol) => {
+                    const Icon = symbol.icon;
+                    const isRelation = isRelationSymbol(symbol);
+                    const isActiveRelation = activeRelationTool.id === symbol.id;
+                    const isAppliedMarker = selectedPerson?.data.markers.includes(symbol.label);
+                    return (
+                      <button
+                        type="button"
+                        key={symbol.id}
+                        className={isActiveRelation || isAppliedMarker ? 'active-tool' : ''}
+                        onClick={() => applySymbol(symbol)}
+                      >
+                        <Icon size={16} />
+                        {isRelation ? `線：${symbol.label}` : symbol.label}
+                      </button>
+                    );
+                  })}
+                </div>}
               </div>
-            ))}
+              );
+            })}
           </aside>
-          <section className="panel graph-panel">
+          <section className="panel graph-panel" ref={genogramGraphRef}>
+            <div className="canvas-relation-status">
+              <span>目前連線類型</span>
+              <strong>{activeRelationTool.label}</strong>
+            </div>
             <ReactFlow
               nodes={genogramNodes}
               edges={genogramEdges}
@@ -741,20 +1046,51 @@ export function FamilySupportPage() {
         <div className="editor-shell ecogram-shell">
           <aside className="panel editor-toolbox">
             <h3>生態資源</h3>
+            <div className={`symbol-tool-group ${openToolboxGroups.includes('ecogram-data') ? 'open' : ''}`}>
+              <button type="button" className="symbol-tool-toggle" aria-expanded={openToolboxGroups.includes('ecogram-data')} onClick={() => toggleSymbolGroup('ecogram-data')}>
+                <strong>生態圖資料</strong>
+                <ChevronDown size={16} />
+              </button>
+              {openToolboxGroups.includes('ecogram-data') && <div className="symbol-tool-content">
+                <button type="button" onClick={saveEcogram}><Save size={16} />儲存到本機</button>
+                <button type="button" onClick={loadEcogram}><Upload size={16} />載入本機版本</button>
+                <button type="button" onClick={exportEcogram}><Download size={16} />匯出 JSON</button>
+                <button type="button" onClick={() => ecogramImportInputRef.current?.click()}><Upload size={16} />匯入 JSON</button>
+                <button type="button" onClick={() => exportDiagramImage(ecogramGraphRef, `arkai-ecogram-${new Date().toISOString().slice(0, 10)}`, 'png')}><FileImage size={16} />匯出 PNG</button>
+                <button type="button" onClick={() => exportDiagramImage(ecogramGraphRef, `arkai-ecogram-${new Date().toISOString().slice(0, 10)}`, 'pdf')}><FileText size={16} />匯出 PDF</button>
+                <input ref={ecogramImportInputRef} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => {
+                  importEcogram(event.target.files?.[0]);
+                  event.target.value = '';
+                }} />
+              </div>}
+            </div>
             {['家庭', '鄰里', '醫療', '社福', '日照', '居服', '宗教', '政府補助'].map((item) => (
-              <button type="button" key={item}>
+              <button type="button" key={item} onClick={() => addResource(item)}>
                 <Home size={16} />
-                {item}
+                新增{item}
               </button>
             ))}
+            <div className="active-relation-tool">
+              <strong>新增關係強度</strong>
+              <select value={activeEcogramStrength} onChange={(event) => setActiveEcogramStrength(event.target.value as ResourceStrength)}>
+                {Object.entries(ecogramRelationStyles).map(([value, relation]) => <option key={value} value={value}>{relation.label}</option>)}
+              </select>
+              <small>選擇強度後，從任一資源節點邊緣拖曳到另一個節點。</small>
+            </div>
           </aside>
-          <section className="panel graph-panel">
+          <section className="panel graph-panel" ref={ecogramGraphRef}>
             <ReactFlow
               nodes={ecogramNodes}
               edges={ecogramEdges}
               nodeTypes={nodeTypes}
+              connectionMode={ConnectionMode.Loose}
+              deleteKeyCode={['Backspace', 'Delete']}
               onNodesChange={onEcogramNodesChange}
               onEdgesChange={onEcogramEdgesChange}
+              onConnect={onEcogramConnect}
+              onSelectionChange={onEcogramSelectionChange}
+              onNodesDelete={() => setSelectedResourceId('')}
+              onEdgesDelete={() => setSelectedEcogramEdgeId('')}
               fitView
             >
               <Background />
@@ -762,13 +1098,26 @@ export function FamilySupportPage() {
             </ReactFlow>
           </section>
           <aside className="panel inspector-panel">
-            <h3>關係強度</h3>
-            <div className="relationship-legend">
-              <span className="strong">強支持</span>
-              <span className="medium">中度支持</span>
-              <span className="weak">弱連結</span>
-              <span className="stress">壓力/衝突</span>
-            </div>
+            <h3>資源與關係設定</h3>
+            {selectedResource ? (
+              <>
+                <label>資源名稱<input value={selectedResource.data.name} onChange={(event) => updateSelectedResource('name', event.target.value)} /></label>
+                <label>資源類型<input value={selectedResource.data.type} onChange={(event) => updateSelectedResource('type', event.target.value)} /></label>
+                <label>資源狀態<select value={selectedResource.data.strength} onChange={(event) => updateSelectedResource('strength', event.target.value as ResourceStrength)}>
+                  {Object.entries(ecogramRelationStyles).map(([value, relation]) => <option key={value} value={value}>{relation.label}</option>)}
+                </select></label>
+                <button type="button" className="danger-button" onClick={deleteSelectedResource}><Trash2 size={16} />刪除資源</button>
+              </>
+            ) : selectedEcogramEdge ? (
+              <div className="relation-inspector">
+                <div><span>來源</span><strong>{ecogramNodes.find((node) => node.id === selectedEcogramEdge.source)?.data.name}</strong></div>
+                <div><span>目標</span><strong>{ecogramNodes.find((node) => node.id === selectedEcogramEdge.target)?.data.name}</strong></div>
+                <label>關係強度<select value={selectedEcogramEdge.data?.strength ?? 'medium'} onChange={(event) => updateEcogramEdgeStrength(event.target.value as ResourceStrength)}>
+                  {Object.entries(ecogramRelationStyles).map(([value, relation]) => <option key={value} value={value}>{relation.label}</option>)}
+                </select></label>
+                <button type="button" className="danger-button" onClick={deleteSelectedEcogramEdge}><Trash2 size={16} />刪除關係</button>
+              </div>
+            ) : <div className="empty-state">選取資源或關係線以進行編輯。</div>}
           </aside>
         </div>
       )}
