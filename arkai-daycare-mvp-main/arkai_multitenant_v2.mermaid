@@ -1,0 +1,44 @@
+graph LR
+    subgraph CP["🎛️ 控制平面 (共享·只碰中繼資料)"]
+        CTRL["Fleet 控制平面<br/>OTA · 監控 · 設定下發<br/>多租戶 RBAC"]
+    end
+
+    subgraph TENANTS["🏢 租戶層｜每家機構資料主權硬隔離 (彼此不相通)"]
+        subgraph TA["租戶 A = 機構A"]
+            SA["感測端點"] --> NA["地端 Node A<br/>×1–n 台<br/>PII+egress閘門"]
+        end
+        subgraph TB["租戶 B = 機構B"]
+            SB["感測端點"] --> NB["地端 Node B<br/>PII+egress閘門"]
+        end
+        subgraph TN["…租戶 N"]
+            SN["感測端點"] --> NN["地端 Node N"]
+        end
+    end
+
+    subgraph DP["☁️ 去識別資料平面 (共享·只收匿名)"]
+        ING["去識別資料匯入口"]
+        CLLM["雲端 LLM 輔助<br/>文獻 / 術語 / 潤稿"]
+        NORM["去識別常模庫<br/>★跨租戶網路效應"]
+        ING --> CLLM
+        ING --> NORM
+    end
+
+    CTRL -.->|mTLS·簽章| NA
+    CTRL -.-> NB
+    CTRL -.-> NN
+
+    NA ==>|已去識別| ING
+    NB ==>|已去識別| ING
+    NN ==>|已去識別| ING
+
+    classDef ctrl fill:#eaeef2,stroke:#607d8b,color:#2c3e50
+    classDef node fill:#fff2cc,stroke:#d6a800,color:#5c4a00
+    classDef sensor fill:#e8f4f8,stroke:#5b9bd5,color:#1a3a4a
+    classDef cloud fill:#f0e6ff,stroke:#9b59b6,color:#3d2352
+    classDef netfx fill:#e0ffe0,stroke:#27ae60,color:#14532d
+
+    class CTRL ctrl
+    class NA,NB,NN node
+    class SA,SB,SN sensor
+    class ING,CLLM cloud
+    class NORM netfx

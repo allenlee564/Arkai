@@ -1,0 +1,60 @@
+graph TD
+    subgraph T0["感測端點層｜最不信任｜隔離 VLAN"]
+        W["智慧手環<br/>HR/SpO2/加速度<br/>(僅採集+跌倒旗標)"]
+        M["床墊/雷達<br/>離床/呼吸<br/>(僅事件旗標)"]
+        V["照服員語音"]
+        F["開案評估表單<br/>(Barthel/NPI-Q)"]
+    end
+
+    subgraph T1["★ 機構地端主機 (appliance)｜這才是『地端』＝信任邊界"]
+        GW["L1 接收閘道<br/>綁 case_id + 落 raw"]
+        NER["L2 醫療 NER 分類<br/>打 PII / 臨床 / 照護脈絡標籤"]
+        RT{"L3 安全分流<br/>資料能不能出門?"}
+        RULE["規則引擎<br/>跌倒燈號 / 人力成本"]
+        THR["閾值引擎<br/>離床 / 跌倒即時預警"]
+        LLM["地端小模型<br/>SOAP 草稿 / 去識別"]
+        RAG[("地端 RAG<br/>院內 SOP / 照護指引")]
+        DB[("加密個案主檔<br/>PII 保險庫 + 去識別趨勢庫")]
+        HUMAN["人工佇列<br/>護理師確認才入檔"]
+        EG["🚪 去識別化 egress 閘道<br/>(唯一對外出口)"]
+    end
+
+    subgraph T2["雲端｜只收去識別資料"]
+        CLLM["文獻查詢 / 術語摘要<br/>護理措辭潤稿 (附來源)"]
+        CTRL["fleet 控制平面<br/>OTA / 監控 (不碰病患資料)"]
+    end
+
+    W --> GW
+    M --> GW
+    V -->|ASR 逐字稿| GW
+    F --> GW
+
+    GW --> NER --> RT
+
+    RT -->|純數值·跳過 NER| RULE
+    RT -->|串流| THR
+    RT -->|含 PII| RAG
+    RT -->|需潤稿| LLM
+    RT -->|不確定| HUMAN
+
+    RULE --> DB
+    THR --> DB
+    LLM --> DB
+    RAG --> LLM
+
+    LLM -->|已去識別| EG
+    EG -->|只出去識別趨勢/術語| CLLM
+    CLLM -->|附來源結果回傳| EG
+
+    DB --> HUMAN
+    CTRL -.->|管控通道·不碰資料| GW
+
+    classDef edge fill:#e8f4f8,stroke:#5b9bd5,color:#1a3a4a
+    classDef core fill:#fff2cc,stroke:#d6a800,color:#5c4a00
+    classDef cloud fill:#f0e6ff,stroke:#9b59b6,color:#3d2352
+    classDef gate fill:#ffe0e0,stroke:#c0392b,color:#7a1c1c
+
+    class W,M,V,F edge
+    class GW,NER,RT,RULE,THR,LLM,RAG,DB,HUMAN core
+    class CLLM,CTRL cloud
+    class EG gate
