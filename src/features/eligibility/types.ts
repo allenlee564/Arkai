@@ -11,6 +11,10 @@ export type DocumentReference = {
   name: string;
   source: string;
   status: 'pending' | 'ready';
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  uploadedAt?: string;
 };
 
 export type EligibilityFormState = {

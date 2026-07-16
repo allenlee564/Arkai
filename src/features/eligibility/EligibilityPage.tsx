@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CheckCircle2, FilePlus2, LockKeyhole, RotateCcw, Save, Send, Trash2 } from 'lucide-react';
+import { CheckCircle2, Download, Eye, FilePlus2, LockKeyhole, RotateCcw, Save, Send, Trash2, UploadCloud } from 'lucide-react';
 import type { AppView } from '../../app/App';
 import type { DocumentReference, EligibilityFormState } from './types';
 
@@ -33,6 +33,9 @@ export function EligibilityPage({ activeView }: EligibilityPageProps) {
     name: '',
     source: '',
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState('');
+  const [fileUrls, setFileUrls] = useState<Record<string, string>>({});
 
   const completion = useMemo(() => {
     const requiredFields = [
@@ -48,28 +51,69 @@ export function EligibilityPage({ activeView }: EligibilityPageProps) {
   }, [form]);
 
   const addDocument = () => {
-    if (!documentDraft.name.trim()) return;
+    if (!documentDraft.name.trim() && !selectedFile) return;
+
+    const id = crypto.randomUUID();
 
     const document: DocumentReference = {
-      id: crypto.randomUUID(),
+      id,
       type: documentDraft.type,
-      name: documentDraft.name.trim(),
-      source: documentDraft.source.trim() || '待補參照位置',
-      status: documentDraft.source.trim() ? 'ready' : 'pending',
+      name: documentDraft.name.trim() || selectedFile?.name || '未命名文件',
+      source: selectedFile ? `本機暫存 · ${selectedFile.name}` : documentDraft.source.trim() || '待補參照位置',
+      status: selectedFile || documentDraft.source.trim() ? 'ready' : 'pending',
+      fileName: selectedFile?.name,
+      fileSize: selectedFile?.size,
+      mimeType: selectedFile?.type,
+      uploadedAt: selectedFile ? new Date().toISOString() : undefined,
     };
+
+    if (selectedFile) {
+      setFileUrls((current) => ({ ...current, [id]: URL.createObjectURL(selectedFile) }));
+    }
 
     setForm((current) => ({
       ...current,
       documents: [...current.documents, document],
     }));
     setDocumentDraft({ type: '身份證明', name: '', source: '' });
+    setSelectedFile(null);
+    setFileError('');
+  };
+
+  const selectDocumentFile = (file?: File) => {
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) {
+      setSelectedFile(null);
+      setFileError('單一檔案不可超過 20 MB');
+      return;
+    }
+
+    setSelectedFile(file);
+    setFileError('');
+    setDocumentDraft((current) => ({
+      ...current,
+      name: current.name.trim() ? current.name : file.name.replace(/\.[^.]+$/, ''),
+    }));
   };
 
   const removeDocument = (id: string) => {
+    const fileUrl = fileUrls[id];
+    if (fileUrl) URL.revokeObjectURL(fileUrl);
+    setFileUrls((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setForm((current) => ({
       ...current,
       documents: current.documents.filter((document) => document.id !== id),
     }));
+  };
+
+  const formatFileSize = (size?: number) => {
+    if (size === undefined) return '';
+    if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
   };
 
   return (
@@ -77,7 +121,7 @@ export function EligibilityPage({ activeView }: EligibilityPageProps) {
       <header className="page-header">
         <div>
           <p className="eyebrow">開案前 / 福利資格判定</p>
-          <h2>{activeView === 'documents' ? '證明文件參照' : activeView === 'security' ? '權限紀錄' : '資格輸入'}</h2>
+          <h2>{activeView === 'security' ? '權限紀錄' : '福利資格判定'}</h2>
         </div>
         <div className="progress-summary" aria-label={`完成度 ${completion}%`}>
           <span>{completion}%</span>
@@ -176,19 +220,32 @@ export function EligibilityPage({ activeView }: EligibilityPageProps) {
               </button>
             </div>
           </form>
-        </div>
-      )}
-
-      {activeView === 'documents' && (
-        <div className="workspace single-column">
           <section className="panel document-panel">
             <div className="section-heading">
               <h3>證明文件參照</h3>
-              <p>目前先保存文件參照資料，之後可串接正式上傳服務。</p>
+              <p>可加入參照位置或直接選取檔案；正式上線後再串接伺服器檔案儲存服務。</p>
             </div>
 
             <div className="document-layout">
               <div className="document-draft">
+                <label className="file-upload-field">
+                  上傳檔案
+                  <input
+                    className="visually-hidden"
+                    type="file"
+                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                    onChange={(event) => {
+                      selectDocumentFile(event.target.files?.[0]);
+                      event.target.value = '';
+                    }}
+                  />
+                  <span className={`file-upload-zone ${selectedFile ? 'has-file' : ''}`}>
+                    <UploadCloud size={22} />
+                    <strong>{selectedFile ? selectedFile.name : '選擇要上傳的文件'}</strong>
+                    <small>{selectedFile ? `${formatFileSize(selectedFile.size)} · 已選取` : 'PDF、圖片、Office 文件，最大 20 MB'}</small>
+                  </span>
+                </label>
+                {fileError && <p className="file-error" role="alert">{fileError}</p>}
                 <label>
                   文件類型
                   <select
@@ -219,7 +276,7 @@ export function EligibilityPage({ activeView }: EligibilityPageProps) {
                 </label>
                 <button type="button" className="primary full-width" onClick={addDocument}>
                   <FilePlus2 size={16} />
-                  加入文件
+                  {selectedFile ? '上傳並加入文件' : '加入文件參照'}
                 </button>
               </div>
 
@@ -233,12 +290,23 @@ export function EligibilityPage({ activeView }: EligibilityPageProps) {
                         <span className="tag">{document.type}</span>
                         <h4>{document.name}</h4>
                         <p>{document.source}</p>
+                        {document.fileName && <small className="document-file-meta">{document.mimeType || '檔案'} · {formatFileSize(document.fileSize)}</small>}
                       </div>
                       <div className="document-actions">
                         <span className={`status ${document.status}`}>
                           <CheckCircle2 size={14} />
                           {document.status === 'ready' ? '已參照' : '待補'}
                         </span>
+                        {fileUrls[document.id] && (
+                          <div className="document-file-actions">
+                            <a className="icon-button" href={fileUrls[document.id]} target="_blank" rel="noreferrer" title="開啟文件" aria-label={`開啟 ${document.name}`}>
+                              <Eye size={16} />
+                            </a>
+                            <a className="icon-button" href={fileUrls[document.id]} download={document.fileName} title="下載文件" aria-label={`下載 ${document.name}`}>
+                              <Download size={16} />
+                            </a>
+                          </div>
+                        )}
                         <button
                           type="button"
                           className="icon-button"

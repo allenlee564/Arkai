@@ -1,14 +1,50 @@
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
+  ArrowUpRight,
   BadgeCheck,
+  ChevronDown,
   ClipboardList,
   FileCheck2,
   HeartPulse,
   LockKeyhole,
+  Menu,
   Network,
   ShieldCheck,
   Sparkles,
+  X,
 } from 'lucide-react';
+
+const websiteMenus = [
+  {
+    id: 'fit',
+    label: '找到適合你的方案',
+    items: [
+      { label: '長照與住宿機構', description: '整合入住前評估與照護資料', href: '#solutions' },
+      { label: '居家照護團隊', description: '集中資格、家庭支持與文件參照', href: '#solutions' },
+      { label: '社福與個管單位', description: '建立可追蹤的開案評估流程', href: '#solutions' },
+    ],
+  },
+  {
+    id: 'product',
+    label: '產品',
+    items: [
+      { label: '開案與資格判定', description: '開案前資料與福利資格流程', href: '#product' },
+      { label: '家庭支持評估', description: '家系圖、生態圖與支持摘要', href: '#product' },
+      { label: '生理需求評估', description: '入住前初評補充欄位', href: '#product' },
+      { label: '系統操作 Demo', description: '直接體驗目前前端原型', href: '/app' },
+    ],
+  },
+  {
+    id: 'resources',
+    label: '資源',
+    items: [
+      { label: '資料安全', description: '權限、稽核與資料處理原則', href: '#security' },
+      { label: '部署架構', description: 'Ubuntu 與 Docker 部署方向', href: '#security' },
+      { label: 'GitHub 專案', description: '查看 ARKAI 開發進度', href: 'https://github.com/allenlee564/Arkai' },
+    ],
+  },
+] as const;
 
 const solutionItems = [
   {
@@ -41,17 +77,60 @@ const trustItems = [
 ];
 
 export function LandingPage() {
+  const [openMenu, setOpenMenu] = useState<string>('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const closeMenu = (event: PointerEvent) => {
+      if (!navRef.current?.contains(event.target as Node)) {
+        setOpenMenu('');
+        setMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', closeMenu);
+    return () => document.removeEventListener('pointerdown', closeMenu);
+  }, []);
+
+  const closeNavigation = () => {
+    setOpenMenu('');
+    setMobileMenuOpen(false);
+  };
+
   return (
     <main className="site-shell">
-      <header className="site-nav">
+      <header className="site-nav" ref={navRef}>
         <a className="site-brand" href="/" aria-label="ARKAI 首頁">
           <span className="site-brand-mark">A</span>
           <span>ARKAI</span>
         </a>
-        <nav aria-label="網站導覽">
-          <a href="#solutions">解決方案</a>
-          <a href="#security">資料安全</a>
-          <a href="/app">系統原型</a>
+        <button type="button" className="site-mobile-menu-button" aria-label={mobileMenuOpen ? '關閉網站導覽' : '開啟網站導覽'} aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen((current) => !current)}>
+          {mobileMenuOpen ? <X size={21} /> : <Menu size={21} />}
+        </button>
+        <nav className={mobileMenuOpen ? 'mobile-open' : ''} aria-label="網站導覽">
+          {websiteMenus.map((menu) => {
+            const isOpen = openMenu === menu.id;
+            return (
+              <div className={`site-nav-dropdown ${isOpen ? 'open' : ''}`} key={menu.id}>
+                <button type="button" aria-expanded={isOpen} onClick={() => setOpenMenu(isOpen ? '' : menu.id)}>
+                  {menu.label}<ChevronDown size={15} />
+                </button>
+                {isOpen && (
+                  <div className="site-nav-dropdown-panel">
+                    {menu.items.map((item) => (
+                      <a href={item.href} key={item.label} onClick={closeNavigation}>
+                        <span><strong>{item.label}</strong><small>{item.description}</small></span>
+                        <ArrowUpRight size={15} />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <a href="#customers" onClick={closeNavigation}>客戶</a>
+          <a href="#company" onClick={closeNavigation}>公司</a>
+          <a className="site-consultation-link" href="#consultation" onClick={closeNavigation}>預約諮詢<ArrowUpRight size={15} /></a>
         </nav>
       </header>
 
@@ -99,7 +178,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="site-section compact-section" aria-label="核心價值">
+      <section className="site-section compact-section" id="customers" aria-label="核心價值">
         <div className="metric-strip">
           <div>
             <strong>開案前</strong>
@@ -138,7 +217,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="site-section feature-band">
+      <section className="site-section feature-band" id="product">
         <div>
           <p className="site-eyebrow">Product Preview</p>
           <h2>展示首頁介紹產品，系統原型留給操作 Demo</h2>
@@ -159,7 +238,7 @@ export function LandingPage() {
         </div>
 
         <div className="security-layout">
-          <div className="security-visual">
+          <div className="security-visual" id="company">
             <ShieldCheck size={42} />
             <h3>wkbarret.com</h3>
             <p>首頁可先作為產品介紹入口，後續再加 HTTPS、正式 API 與登入權限。</p>
@@ -175,7 +254,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="site-section cta-section">
+      <section className="site-section cta-section" id="consultation">
         <div>
           <Sparkles size={28} />
           <h2>準備把 ARKAI 放到正式網域</h2>
