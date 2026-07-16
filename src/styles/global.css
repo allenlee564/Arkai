@@ -2079,6 +2079,20 @@ textarea:focus {
   color: #1f7356;
 }
 
+.editor-toolbox button:disabled,
+.genogram-canvas-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.toolbox-hint,
+.field-hint {
+  color: #667780;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
 .symbol-tool-group {
   display: grid;
   align-self: start;
@@ -2239,6 +2253,37 @@ textarea:focus {
 .canvas-relation-status strong {
   color: #1f7356;
   font-size: 0.85rem;
+}
+
+.genogram-canvas-toolbar {
+  position: absolute;
+  z-index: 8;
+  top: 30px;
+  right: 30px;
+  display: flex;
+  gap: 4px;
+  border: 1px solid #d4dfdb;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 16px rgba(24, 40, 47, 0.1);
+  padding: 4px;
+}
+
+.genogram-canvas-toolbar button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #34444c;
+  padding: 0;
+}
+
+.genogram-canvas-toolbar button:hover:not(:disabled) {
+  background: #eaf5f1;
+  color: #1f7356;
 }
 
 .graph-panel .react-flow {

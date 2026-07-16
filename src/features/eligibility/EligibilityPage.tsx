@@ -121,7 +121,7 @@ export function EligibilityPage({ activeView }: EligibilityPageProps) {
       <header className="page-header">
         <div>
           <p className="eyebrow">開案前 / 福利資格判定</p>
-          <h2>{activeView === 'documents' ? '證明文件參照' : activeView === 'security' ? '權限紀錄' : '資格輸入'}</h2>
+          <h2>{activeView === 'security' ? '權限紀錄' : '福利資格判定'}</h2>
         </div>
         <div className="progress-summary" aria-label={`完成度 ${completion}%`}>
           <span>{completion}%</span>
@@ -220,11 +220,6 @@ export function EligibilityPage({ activeView }: EligibilityPageProps) {
               </button>
             </div>
           </form>
-        </div>
-      )}
-
-      {activeView === 'documents' && (
-        <div className="workspace single-column">
           <section className="panel document-panel">
             <div className="section-heading">
               <h3>證明文件參照</h3>

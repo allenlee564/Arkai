@@ -20,9 +20,10 @@ import {
   type Node,
   type NodeProps,
   type OnSelectionChangeParams,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ChevronDown, Circle, Diamond, Download, FileImage, FileText, HeartHandshake, Home, Plus, Save, Square, Trash2, Triangle, Upload, UserRoundCheck } from 'lucide-react';
+import { ChevronDown, Circle, Copy, Diamond, Download, FileImage, FileText, HeartHandshake, Home, Plus, Redo2, Save, Square, Trash2, Triangle, Undo2, Upload, UserRoundCheck, Users, WandSparkles } from 'lucide-react';
 import { genogramSymbols, symbolGroups, type GenogramSymbol } from './genogramSymbols';
 
 type FamilyTab = 'form' | 'genogram' | 'ecogram' | 'legend';
@@ -58,6 +59,7 @@ type RelationEdgeData = {
   label: string;
   category: RelationCategory;
   lane: number;
+  toolId?: string;
 };
 
 type RelationTool = {
@@ -67,6 +69,11 @@ type RelationTool = {
   style?: Edge['style'];
   animated?: boolean;
   markerEnd?: Edge['markerEnd'];
+};
+
+type GenogramSnapshot = {
+  nodes: Node<PersonNodeData>[];
+  edges: Edge<RelationEdgeData>[];
 };
 
 const categoryLane: Record<RelationCategory, number> = {
@@ -159,6 +166,7 @@ function makeRelationEdge(
       label: tool.label,
       category: tool.category,
       lane: categoryLane[tool.category] + laneOffset,
+      toolId: tool.id,
     },
   };
 }
@@ -374,13 +382,19 @@ export function FamilySupportPage() {
   const [selectedEcogramEdgeId, setSelectedEcogramEdgeId] = useState('');
   const [activeEcogramStrength, setActiveEcogramStrength] = useState<ResourceStrength>('medium');
   const [openToolboxGroups, setOpenToolboxGroups] = useState<string[]>([]);
+  const [genogramPast, setGenogramPast] = useState<GenogramSnapshot[]>([]);
+  const [genogramFuture, setGenogramFuture] = useState<GenogramSnapshot[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
   const ecogramImportInputRef = useRef<HTMLInputElement>(null);
   const genogramGraphRef = useRef<HTMLElement>(null);
   const ecogramGraphRef = useRef<HTMLElement>(null);
+  const genogramInstanceRef = useRef<ReactFlowInstance<Node<PersonNodeData>, Edge<RelationEdgeData>> | null>(null);
 
   const selectedPerson = genogramNodes.find((node) => node.id === selectedPersonId);
   const selectedEdge = genogramEdges.find((edge) => edge.id === selectedEdgeId);
+  const selectedEdgeToolId = selectedEdge?.data?.toolId
+    ?? Object.values(relationTools).find((tool) => tool.label === selectedEdge?.data?.label)?.id
+    ?? '';
   const selectedResource = ecogramNodes.find((node) => node.id === selectedResourceId);
   const selectedEcogramEdge = ecogramEdges.find((edge) => edge.id === selectedEcogramEdgeId);
   const familySupportFields = useMemo(() => {
@@ -406,7 +420,44 @@ export function FamilySupportPage() {
     [],
   );
 
+  const createGenogramSnapshot = useCallback(
+    (): GenogramSnapshot => ({
+      nodes: structuredClone(genogramNodes),
+      edges: structuredClone(genogramEdges),
+    }),
+    [genogramEdges, genogramNodes],
+  );
+
+  const recordGenogramHistory = useCallback(() => {
+    const snapshot = createGenogramSnapshot();
+    setGenogramPast((current) => [...current, snapshot].slice(-50));
+    setGenogramFuture([]);
+  }, [createGenogramSnapshot]);
+
+  const undoGenogram = () => {
+    if (genogramPast.length === 0) return;
+    const previous = genogramPast[genogramPast.length - 1];
+    setGenogramFuture((current) => [createGenogramSnapshot(), ...current].slice(0, 50));
+    setGenogramPast((current) => current.slice(0, -1));
+    setGenogramNodes(previous.nodes);
+    setGenogramEdges(previous.edges);
+    setSelectedPersonId('');
+    setSelectedEdgeId('');
+  };
+
+  const redoGenogram = () => {
+    if (genogramFuture.length === 0) return;
+    const next = genogramFuture[0];
+    setGenogramPast((current) => [...current, createGenogramSnapshot()].slice(-50));
+    setGenogramFuture((current) => current.slice(1));
+    setGenogramNodes(next.nodes);
+    setGenogramEdges(next.edges);
+    setSelectedPersonId('');
+    setSelectedEdgeId('');
+  };
+
   const addPerson = (gender: Gender = 'female') => {
+    recordGenogramHistory();
     const id = `person-${Date.now()}`;
     const nextPosition = {
       x: 120 + (genogramNodes.length % 4) * 180,
@@ -440,11 +491,17 @@ export function FamilySupportPage() {
 
   const updateFamilyMember = <K extends keyof PersonNodeData>(id: string, key: K, value: PersonNodeData[K]) => {
     setGenogramNodes((current) =>
-      current.map((node) => node.id === id ? { ...node, data: { ...node.data, [key]: value } } : node),
+      current.map((node) => {
+        if (key === 'status' && value === 'index' && node.id !== id && node.data.status === 'index') {
+          return { ...node, data: { ...node.data, status: 'none' } };
+        }
+        return node.id === id ? { ...node, data: { ...node.data, [key]: value } } : node;
+      }),
     );
   };
 
   const deleteFamilyMember = (id: string) => {
+    recordGenogramHistory();
     setGenogramNodes((current) => current.filter((node) => node.id !== id));
     setGenogramEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id));
     if (selectedPersonId === id) setSelectedPersonId('');
@@ -453,6 +510,7 @@ export function FamilySupportPage() {
   const deleteSelectedPerson = () => {
     if (!selectedPersonId) return;
 
+    recordGenogramHistory();
     setGenogramNodes((current) => current.filter((node) => node.id !== selectedPersonId));
     setGenogramEdges((current) =>
       current.filter((edge) => edge.source !== selectedPersonId && edge.target !== selectedPersonId),
@@ -464,6 +522,7 @@ export function FamilySupportPage() {
   const deleteSelectedEdge = () => {
     if (!selectedEdgeId) return;
 
+    recordGenogramHistory();
     setGenogramEdges((current) => current.filter((edge) => edge.id !== selectedEdgeId));
     setSelectedEdgeId('');
   };
@@ -472,8 +531,11 @@ export function FamilySupportPage() {
     if (!selectedPersonId) return;
 
     setGenogramNodes((current) =>
-      current.map((node) =>
-        node.id === selectedPersonId
+      current.map((node) => {
+        if (key === 'status' && value === 'index' && node.id !== selectedPersonId && node.data.status === 'index') {
+          return { ...node, data: { ...node.data, status: 'none' } };
+        }
+        return node.id === selectedPersonId
           ? {
               ...node,
               data: {
@@ -481,8 +543,8 @@ export function FamilySupportPage() {
                 [key]: value,
               },
             }
-          : node,
-      ),
+          : node;
+      }),
     );
   };
 
@@ -493,6 +555,7 @@ export function FamilySupportPage() {
     }
 
     if (!selectedPerson) return;
+    recordGenogramHistory();
 
     if (symbol.id === 'male' || symbol.id === 'female' || symbol.id === 'unknown' || symbol.id === 'nonbinary') {
       updateSelectedPerson('gender', symbol.id);
@@ -521,6 +584,174 @@ export function FamilySupportPage() {
     updateSelectedPerson('markers', nextMarkers);
   };
 
+  const duplicateSelectedPerson = () => {
+    if (!selectedPerson) return;
+    recordGenogramHistory();
+    const id = `person-${Date.now()}`;
+    setGenogramNodes((current) => [
+      ...current.map((node) => ({ ...node, selected: false })),
+      {
+        ...structuredClone(selectedPerson),
+        id,
+        position: { x: selectedPerson.position.x + 48, y: selectedPerson.position.y + 48 },
+        selected: true,
+        data: {
+          ...structuredClone(selectedPerson.data),
+          name: `${selectedPerson.data.name} 副本`,
+          status: selectedPerson.data.status === 'index' ? 'none' : selectedPerson.data.status,
+        },
+      },
+    ]);
+    setSelectedPersonId(id);
+    setSelectedEdgeId('');
+  };
+
+  const addQuickFamilyStructure = (kind: 'spouse' | 'child' | 'parents') => {
+    if (!selectedPerson) return;
+    recordGenogramHistory();
+    const baseId = Date.now();
+    const makePerson = (
+      id: string,
+      name: string,
+      role: string,
+      gender: Gender,
+      position: { x: number; y: number },
+    ): Node<PersonNodeData> => ({
+      id,
+      type: 'person',
+      position,
+      data: {
+        name,
+        role,
+        gender,
+        status: 'none',
+        note: '',
+        markers: [],
+        support: 'medium',
+      },
+    });
+
+    if (kind === 'spouse') {
+      const id = `spouse-${baseId}`;
+      const spouseGender: Gender = selectedPerson.data.gender === 'male'
+        ? 'female'
+        : selectedPerson.data.gender === 'female'
+          ? 'male'
+          : 'unknown';
+      const node = makePerson(
+        id,
+        '新配偶',
+        '配偶',
+        spouseGender,
+        { x: selectedPerson.position.x + 230, y: selectedPerson.position.y },
+      );
+      setGenogramNodes((current) => [...current, node]);
+      setGenogramEdges((current) => [
+        ...current,
+        makeRelationEdge(`edge-spouse-${baseId}`, selectedPerson.id, id, relationTools.marriage),
+      ]);
+      setSelectedPersonId(id);
+      return;
+    }
+
+    if (kind === 'child') {
+      const id = `child-${baseId}`;
+      const node = makePerson(
+        id,
+        '新子女',
+        '子女',
+        'unknown',
+        { x: selectedPerson.position.x + 80, y: selectedPerson.position.y + 190 },
+      );
+      setGenogramNodes((current) => [...current, node]);
+      setGenogramEdges((current) => [
+        ...current,
+        makeRelationEdge(`edge-child-${baseId}`, selectedPerson.id, id, relationTools['biological-child']),
+      ]);
+      setSelectedPersonId(id);
+      return;
+    }
+
+    const fatherId = `father-${baseId}`;
+    const motherId = `mother-${baseId}`;
+    const father = makePerson(
+      fatherId,
+      '新父親',
+      '父親',
+      'male',
+      { x: selectedPerson.position.x - 130, y: selectedPerson.position.y - 190 },
+    );
+    const mother = makePerson(
+      motherId,
+      '新母親',
+      '母親',
+      'female',
+      { x: selectedPerson.position.x + 130, y: selectedPerson.position.y - 190 },
+    );
+    setGenogramNodes((current) => [...current, father, mother]);
+    setGenogramEdges((current) => [
+      ...current,
+      makeRelationEdge(`edge-parents-${baseId}`, fatherId, motherId, relationTools.marriage),
+      makeRelationEdge(`edge-father-${baseId}`, fatherId, selectedPerson.id, relationTools['biological-child']),
+      makeRelationEdge(`edge-mother-${baseId}`, motherId, selectedPerson.id, relationTools['biological-child']),
+    ]);
+    setSelectedPersonId(fatherId);
+  };
+
+  const updateSelectedEdgeTool = (toolId: string) => {
+    if (!selectedEdgeId) return;
+    const tool = relationTools[toolId];
+    if (!tool) return;
+    recordGenogramHistory();
+    setGenogramEdges((current) =>
+      current.map((edge) =>
+        edge.id === selectedEdgeId
+          ? {
+              ...edge,
+              animated: tool.animated,
+              style: tool.style,
+              markerEnd: tool.markerEnd,
+              data: {
+                label: tool.label,
+                category: tool.category,
+                lane: categoryLane[tool.category],
+                toolId: tool.id,
+              },
+            }
+          : edge,
+      ),
+    );
+  };
+
+  const autoLayoutGenogram = async () => {
+    if (genogramNodes.length === 0) return;
+    recordGenogramHistory();
+    const { default: dagre } = await import('@dagrejs/dagre');
+    const graph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+    graph.setGraph({ rankdir: 'TB', nodesep: 70, ranksep: 110, marginx: 30, marginy: 30 });
+    genogramNodes.forEach((node) => graph.setNode(node.id, { width: 160, height: 120 }));
+    genogramEdges
+      .filter((edge) => edge.data?.category !== 'interaction')
+      .forEach((edge) => graph.setEdge(edge.source, edge.target));
+    dagre.layout(graph);
+
+    setGenogramNodes((current) =>
+      current.map((node) => {
+        const position = graph.node(node.id);
+        return {
+          ...node,
+          selected: false,
+          position: { x: position.x - 80, y: position.y - 60 },
+        };
+      }),
+    );
+    setSelectedPersonId('');
+    setSelectedEdgeId('');
+    requestAnimationFrame(() => {
+      genogramInstanceRef.current?.fitView({ padding: 0.16, duration: 300 });
+    });
+  };
+
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target || connection.source === connection.target) return;
@@ -531,6 +762,7 @@ export function FamilySupportPage() {
           (edge.source === connection.target && edge.target === connection.source),
       ).length;
 
+      recordGenogramHistory();
       setGenogramEdges((current) =>
         addEdge(
           {
@@ -548,7 +780,7 @@ export function FamilySupportPage() {
         ),
       );
     },
-    [activeRelationTool, genogramEdges, setGenogramEdges],
+    [activeRelationTool, genogramEdges, recordGenogramHistory, setGenogramEdges],
   );
 
   const onSelectionChange = useCallback((selection: OnSelectionChangeParams) => {
@@ -562,8 +794,38 @@ export function FamilySupportPage() {
     localStorage.setItem('arkai-genogram', JSON.stringify({ version: 1, nodes: genogramNodes, edges: genogramEdges }));
   };
 
-  const normalizePersonNodes = (nodes: Node<PersonNodeData>[]) =>
-    nodes.map((node) => ({ ...node, data: { ...node.data, support: node.data.support ?? 'medium' } }));
+  const normalizePersonNodes = (nodes: Node<PersonNodeData>[]) => {
+    let hasIndexPerson = false;
+    return nodes.map((node) => {
+      const isDuplicateIndex = node.data.status === 'index' && hasIndexPerson;
+      if (node.data.status === 'index' && !hasIndexPerson) hasIndexPerson = true;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          support: node.data.support ?? 'medium',
+          status: isDuplicateIndex ? 'none' : node.data.status,
+        },
+      };
+    });
+  };
+
+  const normalizeRelationEdges = (edges: Edge<RelationEdgeData>[]) =>
+    edges.map((edge) => {
+      const tool = relationTools[edge.data?.toolId ?? '']
+        ?? Object.values(relationTools).find((item) => item.label === edge.data?.label);
+      return tool
+        ? {
+            ...edge,
+            data: {
+              label: tool.label,
+              category: tool.category,
+              lane: edge.data?.lane ?? categoryLane[tool.category],
+              toolId: tool.id,
+            },
+          }
+        : edge;
+    });
 
   const loadGenogram = () => {
     const saved = localStorage.getItem('arkai-genogram');
@@ -571,8 +833,9 @@ export function FamilySupportPage() {
     try {
       const diagram = JSON.parse(saved) as { nodes?: Node<PersonNodeData>[]; edges?: Edge<RelationEdgeData>[] };
       if (!Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) return;
+      recordGenogramHistory();
       setGenogramNodes(normalizePersonNodes(diagram.nodes));
-      setGenogramEdges(diagram.edges);
+      setGenogramEdges(normalizeRelationEdges(diagram.edges));
       setSelectedPersonId('');
       setSelectedEdgeId('');
     } catch {
@@ -597,8 +860,9 @@ export function FamilySupportPage() {
       try {
         const diagram = JSON.parse(String(reader.result)) as { nodes?: Node<PersonNodeData>[]; edges?: Edge<RelationEdgeData>[] };
         if (!Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) return;
+        recordGenogramHistory();
         setGenogramNodes(normalizePersonNodes(diagram.nodes));
-        setGenogramEdges(diagram.edges);
+        setGenogramEdges(normalizeRelationEdges(diagram.edges));
         setSelectedPersonId('');
         setSelectedEdgeId('');
       } catch {
@@ -882,6 +1146,18 @@ export function FamilySupportPage() {
                 <button type="button" onClick={() => addPerson('nonbinary')}><Triangle size={16} />新增非二元</button>
               </div>}
             </div>
+            <div className={`symbol-tool-group ${openToolboxGroups.includes('quick-family') ? 'open' : ''}`}>
+              <button type="button" className="symbol-tool-toggle" aria-expanded={openToolboxGroups.includes('quick-family')} onClick={() => toggleSymbolGroup('quick-family')}>
+                <strong>快速建立家庭</strong>
+                <ChevronDown size={16} />
+              </button>
+              {openToolboxGroups.includes('quick-family') && <div className="symbol-tool-content">
+                <small className="toolbox-hint">{selectedPerson ? `以「${selectedPerson.data.name}」為中心新增` : '請先選取一位人物'}</small>
+                <button type="button" disabled={!selectedPerson} onClick={() => addQuickFamilyStructure('spouse')}><HeartHandshake size={16} />新增配偶</button>
+                <button type="button" disabled={!selectedPerson} onClick={() => addQuickFamilyStructure('child')}><Plus size={16} />新增子女</button>
+                <button type="button" disabled={!selectedPerson} onClick={() => addQuickFamilyStructure('parents')}><Users size={16} />新增父母組合</button>
+              </div>}
+            </div>
             {selectedLegend.map((group) => {
               const isOpen = openToolboxGroups.includes(group.group);
               return (
@@ -924,6 +1200,11 @@ export function FamilySupportPage() {
               <span>目前連線類型</span>
               <strong>{activeRelationTool.label}</strong>
             </div>
+            <div className="genogram-canvas-toolbar" aria-label="家系圖編輯工具">
+              <button type="button" title="復原" aria-label="復原" disabled={genogramPast.length === 0} onClick={undoGenogram}><Undo2 size={17} /></button>
+              <button type="button" title="重做" aria-label="重做" disabled={genogramFuture.length === 0} onClick={redoGenogram}><Redo2 size={17} /></button>
+              <button type="button" title="自動排版" aria-label="自動排版" onClick={autoLayoutGenogram}><WandSparkles size={17} /></button>
+            </div>
             <ReactFlow
               nodes={genogramNodes}
               edges={genogramEdges}
@@ -933,10 +1214,18 @@ export function FamilySupportPage() {
               deleteKeyCode={['Backspace', 'Delete']}
               onNodesChange={onGenogramNodesChange}
               onEdgesChange={onGenogramEdgesChange}
+              onInit={(instance) => { genogramInstanceRef.current = instance; }}
+              onNodeDragStart={recordGenogramHistory}
               onConnect={onConnect}
               onSelectionChange={onSelectionChange}
-              onEdgesDelete={() => setSelectedEdgeId('')}
-              onNodesDelete={() => setSelectedPersonId('')}
+              onEdgesDelete={() => {
+                recordGenogramHistory();
+                setSelectedEdgeId('');
+              }}
+              onNodesDelete={() => {
+                recordGenogramHistory();
+                setSelectedPersonId('');
+              }}
               fitView
             >
               <Background />
@@ -951,6 +1240,7 @@ export function FamilySupportPage() {
                   姓名
                   <input
                     value={selectedPerson.data.name}
+                    onFocus={recordGenogramHistory}
                     onChange={(event) => updateSelectedPerson('name', event.target.value)}
                   />
                 </label>
@@ -958,6 +1248,7 @@ export function FamilySupportPage() {
                   角色
                   <input
                     value={selectedPerson.data.role}
+                    onFocus={recordGenogramHistory}
                     onChange={(event) => updateSelectedPerson('role', event.target.value)}
                   />
                 </label>
@@ -965,6 +1256,7 @@ export function FamilySupportPage() {
                   性別符號
                   <select
                     value={selectedPerson.data.gender}
+                    onFocus={recordGenogramHistory}
                     onChange={(event) => updateSelectedPerson('gender', event.target.value as Gender)}
                   >
                     <option value="male">男性</option>
@@ -977,6 +1269,7 @@ export function FamilySupportPage() {
                   標記
                   <select
                     value={selectedPerson.data.status}
+                    onFocus={recordGenogramHistory}
                     onChange={(event) => updateSelectedPerson('status', event.target.value as PersonStatus)}
                   >
                     <option value="none">無</option>
@@ -984,11 +1277,13 @@ export function FamilySupportPage() {
                     <option value="caregiver">主要照顧者</option>
                     <option value="deceased">死亡</option>
                   </select>
+                  <small className="field-hint">指定為個案本人時，其他人物的個案本人標記會自動取消。</small>
                 </label>
                 <label>
                   已套用符號
                   <textarea
                     value={selectedPerson.data.markers.join('、')}
+                    onFocus={recordGenogramHistory}
                     onChange={(event) =>
                       updateSelectedPerson(
                         'markers',
@@ -1004,9 +1299,14 @@ export function FamilySupportPage() {
                   備註
                   <textarea
                     value={selectedPerson.data.note}
+                    onFocus={recordGenogramHistory}
                     onChange={(event) => updateSelectedPerson('note', event.target.value)}
                   />
                 </label>
+                <button type="button" className="secondary full-width" onClick={duplicateSelectedPerson}>
+                  <Copy size={16} />
+                  複製角色
+                </button>
                 <button type="button" className="danger-button" onClick={deleteSelectedPerson}>
                   <Trash2 size={16} />
                   刪除角色
@@ -1014,6 +1314,20 @@ export function FamilySupportPage() {
               </>
             ) : selectedEdge ? (
               <div className="relation-inspector">
+                <label>
+                  關係類型
+                  <select value={selectedEdgeToolId} onChange={(event) => updateSelectedEdgeTool(event.target.value)}>
+                    <optgroup label="伴侶關係">
+                      {Object.values(relationTools).filter((tool) => tool.category === 'partner').map((tool) => <option value={tool.id} key={tool.id}>{tool.label}</option>)}
+                    </optgroup>
+                    <optgroup label="親子與出生事件">
+                      {Object.values(relationTools).filter((tool) => tool.category === 'parentChild' || tool.category === 'event').map((tool) => <option value={tool.id} key={tool.id}>{tool.label}</option>)}
+                    </optgroup>
+                    <optgroup label="互動關係">
+                      {Object.values(relationTools).filter((tool) => tool.category === 'interaction').map((tool) => <option value={tool.id} key={tool.id}>{tool.label}</option>)}
+                    </optgroup>
+                  </select>
+                </label>
                 <div>
                   <span>關係線</span>
                   <strong>{selectedEdge.data?.label ?? '未命名關係'}</strong>
