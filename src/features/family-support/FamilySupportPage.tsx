@@ -11,6 +11,7 @@ import {
   MarkerType,
   Position,
   ReactFlow,
+  ViewportPortal,
   getBezierPath,
   useEdgesState,
   useNodesState,
@@ -203,60 +204,100 @@ function assignRelationLanes(edges: Edge<RelationEdgeData>[]) {
   });
 }
 
+function HouseholdBoundary({ nodes }: { nodes: Node<PersonNodeData>[] }) {
+  const householdMembers = nodes.filter((node) => node.data.markers.includes('同住家庭'));
+  if (householdMembers.length === 0) return null;
+
+  const paddingX = 44;
+  const paddingY = 48;
+  const minX = Math.min(...householdMembers.map((node) => node.position.x));
+  const minY = Math.min(...householdMembers.map((node) => node.position.y));
+  const maxX = Math.max(
+    ...householdMembers.map((node) => node.position.x + (node.measured?.width ?? 154)),
+  );
+  const maxY = Math.max(
+    ...householdMembers.map((node) => node.position.y + (node.measured?.height ?? 130)),
+  );
+
+  return (
+    <ViewportPortal>
+      <div
+        className="household-boundary"
+        style={{
+          transform: `translate(${minX - paddingX}px, ${minY - paddingY}px)`,
+          width: maxX - minX + paddingX * 2,
+          height: maxY - minY + paddingY * 2,
+        }}
+      >
+        <span>同住家庭</span>
+      </div>
+    </ViewportPortal>
+  );
+}
+
 const initialGenogramNodes: Node<PersonNodeData>[] = [
   {
-    id: 'grandfather',
+    id: 'spouse-deceased',
     type: 'person',
-    position: { x: 120, y: 40 },
-    data: { name: '林父', role: '父親', gender: 'male', status: 'deceased', note: '1941-2015', markers: [], support: 'none' },
-  },
-  {
-    id: 'grandmother',
-    type: 'person',
-    position: { x: 300, y: 40 },
-    data: { name: '陳母', role: '母親', gender: 'female', status: 'none', note: '', markers: [], support: 'low' },
+    position: { x: 560, y: 40 },
+    data: { name: '陳大明', role: '配偶', gender: 'male', status: 'deceased', note: '111年因心肌梗塞過世', markers: [], support: 'none' },
   },
   {
     id: 'client',
     type: 'person',
-    position: { x: 190, y: 210 },
-    data: { name: '林女士', role: '個案本人', gender: 'female', status: 'index', note: '福利資格待確認', markers: ['身體疾病'], support: 'medium' },
+    position: { x: 300, y: 40 },
+    data: { name: '王秀蘭', role: '案主・78歲', gender: 'female', status: 'index', note: '長照第5級；GDS-15為8分', markers: ['身體疾病', '同住家庭'], support: 'none' },
   },
   {
-    id: 'spouse',
+    id: 'eldest-son',
     type: 'person',
-    position: { x: 430, y: 210 },
-    data: { name: '王先生', role: '配偶', gender: 'male', status: 'none', note: '分居', markers: [], support: 'low' },
+    position: { x: 80, y: 250 },
+    data: { name: '王志明', role: '長子・52歲', gender: 'male', status: 'caregiver', note: '同住；主要照顧者；三明治世代壓力', markers: ['同住家庭'], support: 'high' },
   },
   {
-    id: 'daughter',
+    id: 'daughter-in-law',
     type: 'person',
-    position: { x: 240, y: 390 },
-    data: { name: '林小安', role: '女兒/主要照顧者', gender: 'female', status: 'caregiver', note: '照顧壓力高', markers: [], support: 'high' },
+    position: { x: 280, y: 250 },
+    data: { name: '李佳玲', role: '長媳・50歲', gender: 'female', status: 'none', note: '同住；共同提供日常照顧', markers: ['同住家庭'], support: 'high' },
   },
   {
-    id: 'son',
+    id: 'second-son',
     type: 'person',
-    position: { x: 430, y: 390 },
-    data: { name: '林小宇', role: '兒子', gender: 'male', status: 'none', note: '外縣市工作', markers: [], support: 'medium' },
+    position: { x: 540, y: 250 },
+    data: { name: '王志偉', role: '次子・48歲', gender: 'male', status: 'none', note: '居住新北市；假日探視與電話問候', markers: [], support: 'low' },
+  },
+  {
+    id: 'eldest-daughter',
+    type: 'person',
+    position: { x: 760, y: 250 },
+    data: { name: '王美惠', role: '長女・45歲', gender: 'female', status: 'none', note: '居住高雄市；假日探視與電話問候', markers: [], support: 'low' },
+  },
+  {
+    id: 'grandson',
+    type: 'person',
+    position: { x: 180, y: 470 },
+    data: { name: '王小宇', role: '孫子・16歲', gender: 'male', status: 'none', note: '同住；就讀高中', markers: ['同住家庭'], support: 'low' },
   },
 ];
 
 const initialGenogramEdges: Edge<RelationEdgeData>[] = [
-  makeRelationEdge('e-grandparents', 'grandfather', 'grandmother', relationTools.marriage),
-  makeRelationEdge('e-parent-client', 'grandfather', 'client', relationTools['biological-child']),
-  makeRelationEdge('e-spouse', 'client', 'spouse', relationTools.separation),
-  makeRelationEdge('e-daughter', 'client', 'daughter', relationTools['biological-child']),
-  makeRelationEdge('e-son', 'client', 'son', relationTools['biological-child']),
-  makeRelationEdge('e-client-daughter-close', 'client', 'daughter', relationTools.close),
+  makeRelationEdge('e-client-spouse', 'spouse-deceased', 'client', relationTools.marriage),
+  makeRelationEdge('e-client-eldest-son', 'client', 'eldest-son', relationTools['biological-child']),
+  makeRelationEdge('e-client-second-son', 'client', 'second-son', relationTools['biological-child']),
+  makeRelationEdge('e-client-eldest-daughter', 'client', 'eldest-daughter', relationTools['biological-child']),
+  makeRelationEdge('e-eldest-couple', 'eldest-son', 'daughter-in-law', relationTools.marriage),
+  makeRelationEdge('e-grandson', 'eldest-son', 'grandson', relationTools['biological-child']),
 ];
 
 const initialEcogramNodes: Node<ResourceNodeData>[] = [
-  { id: 'case', type: 'resource', position: { x: 360, y: 220 }, data: { name: '林女士', type: '個案', strength: 'strong' } },
-  { id: 'daughter-care', type: 'resource', position: { x: 80, y: 80 }, data: { name: '女兒', type: '主要照顧者', strength: 'strong' } },
-  { id: 'daycare', type: 'resource', position: { x: 640, y: 90 }, data: { name: '日照中心', type: '待評估資源', strength: 'medium' } },
-  { id: 'hospital', type: 'resource', position: { x: 110, y: 390 }, data: { name: '醫院', type: '醫療資源', strength: 'medium' } },
-  { id: 'spouse-resource', type: 'resource', position: { x: 660, y: 390 }, data: { name: '配偶', type: '壓力來源', strength: 'stress' } },
+  { id: 'case', type: 'resource', position: { x: 410, y: 250 }, data: { name: '王秀蘭', type: '案主・長照第5級', strength: 'strong' } },
+  { id: 'eldest-son-family', type: 'resource', position: { x: 410, y: 20 }, data: { name: '長子家庭（同住）', type: '日常生活照顧・經濟支持', strength: 'strong' } },
+  { id: 'home-care', type: 'resource', position: { x: 80, y: 100 }, data: { name: '居家照顧服務', type: '身體照顧・每週3次', strength: 'medium' } },
+  { id: 'medical', type: 'resource', position: { x: 40, y: 360 }, data: { name: '醫療（聯合醫院）', type: '骨科回診・血壓控制', strength: 'medium' } },
+  { id: 'home-rehab', type: 'resource', position: { x: 280, y: 500 }, data: { name: '居家復健（物理治療）', type: '每週1-2次・下肢肌力訓練', strength: 'medium' } },
+  { id: 'government', type: 'resource', position: { x: 750, y: 100 }, data: { name: '政府單位（區公所）', type: '福利諮詢・資源轉介', strength: 'weak' } },
+  { id: 'religion', type: 'resource', position: { x: 820, y: 340 }, data: { name: '宗教信仰（佛堂共修）', type: '情緒支持・社交參與', strength: 'weak' } },
+  { id: 'community', type: 'resource', position: { x: 650, y: 520 }, data: { name: '社區（里辦公處）', type: '急難通報・日常關懷', strength: 'weak' } },
 ];
 
 const ecogramRelationStyles: Record<ResourceStrength, { label: string; style: Edge['style']; animated?: boolean }> = {
@@ -272,10 +313,13 @@ function makeEcogramEdge(id: string, source: string, target: string, strength: R
 }
 
 const initialEcogramEdges: Edge<EcogramEdgeData>[] = [
-  makeEcogramEdge('eco-daughter', 'case', 'daughter-care', 'strong'),
-  makeEcogramEdge('eco-daycare', 'case', 'daycare', 'weak'),
-  makeEcogramEdge('eco-hospital', 'case', 'hospital', 'medium'),
-  makeEcogramEdge('eco-spouse', 'case', 'spouse-resource', 'stress'),
+  makeEcogramEdge('eco-eldest-son-family', 'case', 'eldest-son-family', 'strong'),
+  makeEcogramEdge('eco-home-care', 'case', 'home-care', 'medium'),
+  makeEcogramEdge('eco-medical', 'case', 'medical', 'medium'),
+  makeEcogramEdge('eco-home-rehab', 'case', 'home-rehab', 'medium'),
+  makeEcogramEdge('eco-government', 'case', 'government', 'weak'),
+  makeEcogramEdge('eco-religion', 'case', 'religion', 'weak'),
+  makeEcogramEdge('eco-community', 'case', 'community', 'weak'),
 ];
 
 function GenogramRelationEdge({
@@ -498,14 +542,22 @@ export function FamilySupportPage() {
   const familySupportFields = useMemo(() => {
     const indexPerson = genogramNodes.find((node) => node.data.status === 'index');
     const caregivers = genogramNodes.filter((node) => node.data.status === 'caregiver');
-    const supportedMembers = genogramNodes.filter((node) => node.data.support === 'high' || node.data.support === 'medium');
-    const risks = genogramNodes.map((node) => node.data.note).filter(Boolean).slice(0, 3);
-    const resources = ecogramNodes.filter((node) => node.id !== 'case').map((node) => node.data.name).slice(0, 4);
+    const supportedMembers = genogramNodes.filter(
+      (node) => node.data.status !== 'index' && (node.data.support === 'high' || node.data.support === 'medium'),
+    );
+    const coResidents = genogramNodes.filter((node) => node.data.markers.includes('同住家庭'));
+    const risks = genogramNodes
+      .filter((node) => node.data.status !== 'deceased')
+      .map((node) => node.data.note)
+      .filter(Boolean)
+      .slice(0, 3);
+    const resources = ecogramNodes.filter((node) => node.id !== 'case').map((node) => node.data.name);
     return [
       { label: '個案本人', value: indexPerson?.data.name || '尚未指定', tone: 'index' },
       { label: '主要照顧者', value: caregivers.map((node) => node.data.name).join('、') || '尚未指定', tone: 'caregiver' },
       { label: '家庭支持強度', value: `${supportedMembers.length} 位成員提供中度以上支持`, tone: '' },
       { label: '目前風險', value: risks.join('、') || '尚未填寫', tone: '' },
+      { label: '同住家庭', value: coResidents.map((node) => node.data.name).join('、') || '尚未標記', tone: 'wide' },
       { label: '外部資源', value: resources.join('、') || '尚未建立', tone: 'wide' },
     ];
   }, [ecogramNodes, genogramNodes]);
@@ -1374,9 +1426,12 @@ export function FamilySupportPage() {
                   recordGenogramHistory();
                   setSelectedPersonId('');
                 }}
+                minZoom={0.3}
                 fitView
+                fitViewOptions={{ padding: 0.16 }}
               >
                 <Background />
+                <HouseholdBoundary nodes={genogramNodes} />
                 <Controls />
               </ReactFlow>
             </RelationLabelDragContext.Provider>
@@ -1563,7 +1618,9 @@ export function FamilySupportPage() {
               onSelectionChange={onEcogramSelectionChange}
               onNodesDelete={() => setSelectedResourceId('')}
               onEdgesDelete={() => setSelectedEcogramEdgeId('')}
+              minZoom={0.3}
               fitView
+              fitViewOptions={{ padding: 0.16 }}
             >
               <Background />
               <Controls />
