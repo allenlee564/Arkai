@@ -526,6 +526,7 @@ export function FamilySupportPage() {
   const [openToolboxGroups, setOpenToolboxGroups] = useState<string[]>([]);
   const [genogramPast, setGenogramPast] = useState<GenogramSnapshot[]>([]);
   const [genogramFuture, setGenogramFuture] = useState<GenogramSnapshot[]>([]);
+  const [genogramAnalysis, setGenogramAnalysis] = useState('');
   const importInputRef = useRef<HTMLInputElement>(null);
   const ecogramImportInputRef = useRef<HTMLInputElement>(null);
   const genogramGraphRef = useRef<HTMLElement>(null);
@@ -989,7 +990,10 @@ export function FamilySupportPage() {
   }, []);
 
   const saveGenogram = () => {
-    localStorage.setItem('arkai-genogram', JSON.stringify({ version: 1, nodes: genogramNodes, edges: genogramEdges }));
+    localStorage.setItem(
+      'arkai-genogram',
+      JSON.stringify({ version: 2, nodes: genogramNodes, edges: genogramEdges, analysis: genogramAnalysis }),
+    );
   };
 
   const normalizePersonNodes = (nodes: Node<PersonNodeData>[]) => {
@@ -1030,11 +1034,16 @@ export function FamilySupportPage() {
     const saved = localStorage.getItem('arkai-genogram');
     if (!saved) return;
     try {
-      const diagram = JSON.parse(saved) as { nodes?: Node<PersonNodeData>[]; edges?: Edge<RelationEdgeData>[] };
+      const diagram = JSON.parse(saved) as {
+        nodes?: Node<PersonNodeData>[];
+        edges?: Edge<RelationEdgeData>[];
+        analysis?: string;
+      };
       if (!Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) return;
       recordGenogramHistory();
       setGenogramNodes(normalizePersonNodes(diagram.nodes));
       setGenogramEdges(normalizeRelationEdges(diagram.edges));
+      setGenogramAnalysis(typeof diagram.analysis === 'string' ? diagram.analysis : '');
       setSelectedPersonId('');
       setSelectedEdgeId('');
     } catch {
@@ -1043,7 +1052,11 @@ export function FamilySupportPage() {
   };
 
   const exportGenogram = () => {
-    const content = JSON.stringify({ version: 1, nodes: genogramNodes, edges: genogramEdges }, null, 2);
+    const content = JSON.stringify(
+      { version: 2, nodes: genogramNodes, edges: genogramEdges, analysis: genogramAnalysis },
+      null,
+      2,
+    );
     const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
@@ -1057,11 +1070,16 @@ export function FamilySupportPage() {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const diagram = JSON.parse(String(reader.result)) as { nodes?: Node<PersonNodeData>[]; edges?: Edge<RelationEdgeData>[] };
+        const diagram = JSON.parse(String(reader.result)) as {
+          nodes?: Node<PersonNodeData>[];
+          edges?: Edge<RelationEdgeData>[];
+          analysis?: string;
+        };
         if (!Array.isArray(diagram.nodes) || !Array.isArray(diagram.edges)) return;
         recordGenogramHistory();
         setGenogramNodes(normalizePersonNodes(diagram.nodes));
         setGenogramEdges(normalizeRelationEdges(diagram.edges));
+        setGenogramAnalysis(typeof diagram.analysis === 'string' ? diagram.analysis : '');
         setSelectedPersonId('');
         setSelectedEdgeId('');
       } catch {
@@ -1394,48 +1412,64 @@ export function FamilySupportPage() {
               );
             })}
           </aside>
-          <section className="panel graph-panel" ref={genogramGraphRef}>
-            <div className="canvas-relation-status">
-              <span>目前連線類型</span>
-              <strong>{activeRelationTool.label}</strong>
-            </div>
-            <div className="genogram-canvas-toolbar" aria-label="家系圖編輯工具">
-              <button type="button" title="復原" aria-label="復原" disabled={genogramPast.length === 0} onClick={undoGenogram}><Undo2 size={17} /></button>
-              <button type="button" title="重做" aria-label="重做" disabled={genogramFuture.length === 0} onClick={redoGenogram}><Redo2 size={17} /></button>
-              <button type="button" title="自動排版" aria-label="自動排版" onClick={autoLayoutGenogram}><WandSparkles size={17} /></button>
-            </div>
-            <RelationLabelDragContext.Provider value={relationLabelDragActions}>
-              <ReactFlow
-                nodes={genogramNodes}
-                edges={genogramEdges}
-                nodeTypes={nodeTypes}
-                edgeTypes={edgeTypes}
-                connectionMode={ConnectionMode.Loose}
-                deleteKeyCode={['Backspace', 'Delete']}
-                onNodesChange={onGenogramNodesChange}
-                onEdgesChange={onGenogramEdgesChange}
-                onInit={(instance) => { genogramInstanceRef.current = instance; }}
-                onNodeDragStart={recordGenogramHistory}
-                onConnect={onConnect}
-                onSelectionChange={onSelectionChange}
-                onEdgesDelete={() => {
-                  recordGenogramHistory();
-                  setSelectedEdgeId('');
-                }}
-                onNodesDelete={() => {
-                  recordGenogramHistory();
-                  setSelectedPersonId('');
-                }}
-                minZoom={0.3}
-                fitView
-                fitViewOptions={{ padding: 0.16 }}
-              >
-                <Background />
-                <HouseholdBoundary nodes={genogramNodes} />
-                <Controls />
-              </ReactFlow>
-            </RelationLabelDragContext.Provider>
-          </section>
+          <div className="genogram-main-column">
+            <section className="panel graph-panel" ref={genogramGraphRef}>
+              <div className="canvas-relation-status">
+                <span>目前連線類型</span>
+                <strong>{activeRelationTool.label}</strong>
+              </div>
+              <div className="genogram-canvas-toolbar" aria-label="家系圖編輯工具">
+                <button type="button" title="復原" aria-label="復原" disabled={genogramPast.length === 0} onClick={undoGenogram}><Undo2 size={17} /></button>
+                <button type="button" title="重做" aria-label="重做" disabled={genogramFuture.length === 0} onClick={redoGenogram}><Redo2 size={17} /></button>
+                <button type="button" title="自動排版" aria-label="自動排版" onClick={autoLayoutGenogram}><WandSparkles size={17} /></button>
+              </div>
+              <RelationLabelDragContext.Provider value={relationLabelDragActions}>
+                <ReactFlow
+                  nodes={genogramNodes}
+                  edges={genogramEdges}
+                  nodeTypes={nodeTypes}
+                  edgeTypes={edgeTypes}
+                  connectionMode={ConnectionMode.Loose}
+                  deleteKeyCode={['Backspace', 'Delete']}
+                  onNodesChange={onGenogramNodesChange}
+                  onEdgesChange={onGenogramEdgesChange}
+                  onInit={(instance) => { genogramInstanceRef.current = instance; }}
+                  onNodeDragStart={recordGenogramHistory}
+                  onConnect={onConnect}
+                  onSelectionChange={onSelectionChange}
+                  onEdgesDelete={() => {
+                    recordGenogramHistory();
+                    setSelectedEdgeId('');
+                  }}
+                  onNodesDelete={() => {
+                    recordGenogramHistory();
+                    setSelectedPersonId('');
+                  }}
+                  minZoom={0.3}
+                  fitView
+                  fitViewOptions={{ padding: 0.16 }}
+                >
+                  <Background />
+                  <HouseholdBoundary nodes={genogramNodes} />
+                  <Controls />
+                </ReactFlow>
+              </RelationLabelDragContext.Provider>
+            </section>
+            <section className="panel genogram-analysis-panel">
+              <div className="section-heading">
+                <h3>家系圖綜合分析</h3>
+                <p>整理家庭結構、互動模式、照顧角色與潛在風險。</p>
+              </div>
+              <label>
+                分析內容
+                <textarea
+                  value={genogramAnalysis}
+                  onChange={(event) => setGenogramAnalysis(event.target.value)}
+                  placeholder="請輸入家系圖綜合分析內容"
+                />
+              </label>
+            </section>
+          </div>
           <aside className="panel inspector-panel">
             <h3>屬性面板</h3>
             {selectedPerson ? (

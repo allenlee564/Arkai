@@ -1630,6 +1630,10 @@ textarea:focus {
   padding: 22px;
 }
 
+.blank-page-panel {
+  min-height: 520px;
+}
+
 .physiological-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -2196,6 +2200,33 @@ textarea:focus {
   grid-template-columns: 230px minmax(0, 1fr) 280px;
   gap: 14px;
   min-height: 680px;
+}
+
+.genogram-main-column {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 14px;
+}
+
+.genogram-analysis-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.genogram-analysis-panel label {
+  display: grid;
+  gap: 8px;
+  color: #52656e;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.genogram-analysis-panel textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
 }
 
 .editor-toolbox {
