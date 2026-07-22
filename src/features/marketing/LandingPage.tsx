@@ -9,7 +9,6 @@ import {
   HeartPulse,
   LockKeyhole,
   Menu,
-  Network,
   ShieldCheck,
   Sparkles,
   X,
@@ -41,7 +40,6 @@ const websiteMenus = [
     items: [
       { label: '資料安全', description: '權限、稽核與資料處理原則', href: '#security' },
       { label: '部署架構', description: 'Ubuntu 與 Docker 部署方向', href: '#security' },
-      { label: 'GitHub 專案', description: '查看 ARKAI 開發進度', href: 'https://github.com/allenlee564/Arkai' },
     ],
   },
 ] as const;
@@ -258,16 +256,12 @@ export function LandingPage() {
         <div>
           <Sparkles size={28} />
           <h2>準備把 ARKAI 放到正式網域</h2>
-          <p>下一步可以把 GitHub 專案部署到 Ubuntu Docker，讓 `wkbarret.com` 直接顯示這個官網。</p>
+          <p>下一步可以將目前前端版本部署到 Ubuntu Docker，讓 `wkbarret.com` 直接顯示這個官網。</p>
         </div>
         <div className="cta-actions">
           <a className="site-button primary-link" href="/app">
             看目前原型
             <ArrowRight size={18} />
-          </a>
-          <a className="site-button secondary-link" href="https://github.com/allenlee564/Arkai">
-            GitHub Repo
-            <Network size={18} />
           </a>
         </div>
       </section>
